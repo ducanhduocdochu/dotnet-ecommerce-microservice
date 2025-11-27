@@ -13,3 +13,4 @@ D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Application\obj\Debug\net8.0
 D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Application\obj\Debug\net8.0\refint\Auth.Application.dll
 D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Application\obj\Debug\net8.0\Auth.Application.pdb
 D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Application\obj\Debug\net8.0\ref\Auth.Application.dll
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Application\obj\Debug\net8.0\Auth.Application.sourcelink.json
