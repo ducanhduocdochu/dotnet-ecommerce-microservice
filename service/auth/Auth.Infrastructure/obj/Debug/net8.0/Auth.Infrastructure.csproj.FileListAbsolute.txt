@@ -1,0 +1,17 @@
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\bin\Debug\net8.0\Auth.Infrastructure.deps.json
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\bin\Debug\net8.0\Auth.Infrastructure.dll
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\bin\Debug\net8.0\Auth.Infrastructure.pdb
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\bin\Debug\net8.0\Auth.Application.dll
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\bin\Debug\net8.0\Auth.Domain.dll
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\bin\Debug\net8.0\Auth.Domain.pdb
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\bin\Debug\net8.0\Auth.Application.pdb
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\obj\Debug\net8.0\Auth.Infrastructure.csproj.AssemblyReference.cache
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\obj\Debug\net8.0\Auth.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\obj\Debug\net8.0\Auth.Infrastructure.AssemblyInfoInputs.cache
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\obj\Debug\net8.0\Auth.Infrastructure.AssemblyInfo.cs
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\obj\Debug\net8.0\Auth.Infrastructure.csproj.CoreCompileInputs.cache
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\obj\Debug\net8.0\Auth.Inf.EC29ECAC.Up2Date
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\obj\Debug\net8.0\Auth.Infrastructure.dll
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\obj\Debug\net8.0\refint\Auth.Infrastructure.dll
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\obj\Debug\net8.0\Auth.Infrastructure.pdb
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Infrastructure\obj\Debug\net8.0\ref\Auth.Infrastructure.dll

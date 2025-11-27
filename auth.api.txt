@@ -1,0 +1,10 @@
+Register	POST /auth/register	users
+Login	POST /auth/login	users, refresh_tokens
+Refresh token	POST /auth/refresh	refresh_tokens
+Logout	POST /auth/logout	refresh_tokens
+Current user	GET /auth/me	users
+Get permissions	GET /auth/permissions	users, roles, user_roles
+List roles	GET /roles	roles
+Create role	POST /roles	roles
+Assign role	POST /user-roles	user_roles
+Remove role	DELETE /user-roles	user_roles
