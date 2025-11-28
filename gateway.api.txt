@@ -1,0 +1,64 @@
+-- Gateway Service API Endpoints
+-- Base URL: http://localhost:8080
+
+-- ============================================
+-- Health & Info
+-- ============================================
+
+-- Health check (public)
+GET /health
+Response: { status: "healthy", service: "gateway" }
+
+-- Gateway info (requires auth)
+GET /api/gateway/info
+Headers: Authorization: Bearer {token}
+Response: { service: "API Gateway", version: "1.0.0", services: {...}, timestamp: "..." }
+
+-- ============================================
+-- Auth Service Routes (via Gateway)
+-- ============================================
+
+-- All /auth/* routes are proxied to Auth Service
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/refresh
+POST /api/auth/logout
+POST /api/auth/send-verification-email
+POST /api/auth/verify-email
+GET /api/auth/me (requires auth)
+GET /api/auth/permissions (requires auth)
+
+-- ============================================
+-- User Service Routes (via Gateway)
+-- ============================================
+
+-- All /api/users/* routes are proxied to User Service
+GET /api/users/me/profile (requires auth)
+PUT /api/users/me/profile (requires auth)
+POST /api/users/me/avatar (requires auth)
+GET /api/users/me/addresses (requires auth)
+POST /api/users/me/addresses (requires auth)
+-- ... all other user endpoints
+
+-- ============================================
+-- Other Services Routes
+-- ============================================
+
+-- Product Service: /api/products/*
+-- Order Service: /api/orders/*
+-- Payment Service: /api/payments/*
+-- Inventory Service: /api/inventory/*
+-- Discount Service: /api/discounts/*
+-- Notification Service: /api/notifications/*
+
+-- ============================================
+-- Gateway Features
+-- ============================================
+
+1. JWT Validation: Gateway validates JWT token từ client
+2. Internal Auth: Gateway thêm internal headers khi forward đến services
+3. Request Routing: Smart routing đến đúng service
+4. Load Balancing: Có thể config multiple destinations
+5. Rate Limiting: Có thể thêm rate limiting middleware
+6. Request/Response Transformation: Transform headers, paths, etc.
+

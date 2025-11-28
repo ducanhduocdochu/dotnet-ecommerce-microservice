@@ -14,6 +14,10 @@ public class AuthService
 {
     private readonly IUserRepository _userRepository;
     private readonly IRefreshTokenRepository _refreshTokenRepository;
+    private readonly IUserRoleRepository _userRoleRepository;
+    private readonly IRoleRepository _roleRepository;
+    private readonly IEmailVerificationRepository _emailVerificationRepository;
+    private readonly EmailService _emailService;
     private readonly string _jwtSecret;
     private readonly int _jwtExpiresMinutes;
     private readonly int _refreshTokenExpiresDays;
@@ -21,10 +25,18 @@ public class AuthService
     public AuthService(
         IUserRepository userRepository,
         IRefreshTokenRepository refreshTokenRepository,
+        IUserRoleRepository userRoleRepository,
+        IRoleRepository roleRepository,
+        IEmailVerificationRepository emailVerificationRepository,
+        EmailService emailService,
         IConfiguration config)
     {
         _userRepository = userRepository;
         _refreshTokenRepository = refreshTokenRepository;
+        _userRoleRepository = userRoleRepository;
+        _roleRepository = roleRepository;
+        _emailVerificationRepository = emailVerificationRepository;
+        _emailService = emailService;
         _jwtSecret = config["Jwt:Secret"] ?? "SuperSecretKey12345";
         _jwtExpiresMinutes = int.Parse(config["Jwt:ExpiresMinutes"] ?? "60");
         _refreshTokenExpiresDays = int.Parse(config["Jwt:RefreshTokenExpiresDays"] ?? "7");
@@ -39,6 +51,20 @@ public class AuthService
         var user = new User(email, hashed, fullName);
         await _userRepository.AddAsync(user);
         await _userRepository.SaveChangesAsync();
+
+        // Assign default "Customer" role to new user
+        var customerRole = await _roleRepository.GetByNameAsync("Customer");
+        if (customerRole != null)
+        {
+            var userRole = new UserRole
+            {
+                UserId = user.Id,
+                RoleId = customerRole.Id
+            };
+            await _userRoleRepository.AddAsync(userRole);
+            await _userRoleRepository.SaveChangesAsync();
+        }
+
         return user;
     }
 
@@ -49,7 +75,7 @@ public class AuthService
 
         if (!BCrypt.Net.BCrypt.Verify(password, user.PasswordHash)) return null;
 
-        var accessToken = GenerateJwtToken(user);
+        var accessToken = await GenerateJwtTokenAsync(user);
         var refreshToken = await GenerateRefreshTokenAsync(user.Id);
 
         return (accessToken, refreshToken);
@@ -68,7 +94,7 @@ public class AuthService
         await _refreshTokenRepository.SaveChangesAsync();
 
         // Generate new tokens
-        var newAccessToken = GenerateJwtToken(user);
+        var newAccessToken = await GenerateJwtTokenAsync(user);
         var newRefreshToken = await GenerateRefreshTokenAsync(user.Id);
 
         return (newAccessToken, newRefreshToken);
@@ -84,18 +110,32 @@ public class AuthService
         return true;
     }
 
-    private string GenerateJwtToken(User user)
+    private async Task<string> GenerateJwtTokenAsync(User user)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.ASCII.GetBytes(_jwtSecret);
 
+        // Get user roles
+        var userRoles = await _userRoleRepository.GetByUserIdAsync(user.Id);
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(ClaimTypes.Email, user.Email)
+        };
+
+        // Add role claims
+        foreach (var userRole in userRoles)
+        {
+            var role = await _roleRepository.GetByIdAsync(userRole.RoleId);
+            if (role != null)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role.Name));
+            }
+        }
+
         var tokenDescriptor = new SecurityTokenDescriptor
         {
-            Subject = new ClaimsIdentity(new Claim[]
-            {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Email, user.Email)
-            }),
+            Subject = new ClaimsIdentity(claims),
             Expires = DateTime.UtcNow.AddMinutes(_jwtExpiresMinutes),
             SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key),
                                                         SecurityAlgorithms.HmacSha256Signature)
@@ -122,5 +162,57 @@ public class AuthService
         await _refreshTokenRepository.SaveChangesAsync();
 
         return token;
+    }
+
+    public async Task<bool> SendVerificationEmailAsync(string email)
+    {
+        var user = await _userRepository.GetByEmailAsync(email);
+        if (user == null) return false;
+
+        // Generate verification token
+        var randomBytes = new byte[64];
+        using var rng = RandomNumberGenerator.Create();
+        rng.GetBytes(randomBytes);
+        var token = Convert.ToBase64String(randomBytes).Replace("+", "-").Replace("/", "_").Replace("=", "");
+
+        // Create email verification record
+        var emailVerification = new EmailVerification(
+            user.Id,
+            token,
+            DateTime.UtcNow.AddDays(1) // Expires in 24 hours
+        );
+
+        // Invalidate previous verification tokens for this user
+        var existing = await _emailVerificationRepository.GetByUserIdAsync(user.Id);
+        if (existing != null)
+        {
+            existing.MarkAsUsed();
+            await _emailVerificationRepository.UpdateAsync(existing);
+        }
+
+        await _emailVerificationRepository.AddAsync(emailVerification);
+        await _emailVerificationRepository.SaveChangesAsync();
+
+        // Send email
+        return await _emailService.SendVerificationEmailAsync(user.Email, user.FullName, token);
+    }
+
+    public async Task<bool> VerifyEmailAsync(string token)
+    {
+        var emailVerification = await _emailVerificationRepository.GetByTokenAsync(token);
+        if (emailVerification == null) return false;
+
+        var user = await _userRepository.GetByIdAsync(emailVerification.UserId);
+        if (user == null) return false;
+
+        // Mark token as used
+        emailVerification.MarkAsUsed();
+        await _emailVerificationRepository.UpdateAsync(emailVerification);
+
+        // Activate user
+        user.Activate();
+        await _userRepository.SaveChangesAsync();
+
+        return true;
     }
 }

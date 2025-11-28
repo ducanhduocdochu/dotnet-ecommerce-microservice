@@ -1,0 +1,19 @@
+Admin — Quản trị hệ thống
+    Quản lý toàn bộ hệ thống
+    Quản lý users, roles, permissions
+Cấu hình hệ thống
+    Customer — Khách hàng
+    Xem sản phẩm, đặt hàng, quản lý đơn hàng của mình
+    Xem lịch sử mua hàng
+Seller/Merchant — Người bán
+    Quản lý sản phẩm, đơn hàng của shop
+    Xem thống kê doanh thu
+Manager — Quản lý
+    Quản lý sellers, phê duyệt sản phẩm
+    Xem báo cáo tổng hợp
+Staff/Employee — Nhân viên
+    Xử lý đơn hàng, hỗ trợ khách hàng
+    Quản lý kho hàng
+Moderator — Kiểm duyệt
+    Duyệt sản phẩm, đánh giá
+    Xử lý khiếu nại

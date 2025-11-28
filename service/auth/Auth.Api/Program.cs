@@ -16,8 +16,10 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<IUserRoleRepository, UserRoleRepository>();
+builder.Services.AddScoped<IEmailVerificationRepository, EmailVerificationRepository>();
 
 // Register services
+builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<AuthService>();
 
 builder.Services.AddAuthentication("Bearer")
@@ -33,7 +35,10 @@ builder.Services.AddAuthentication("Bearer")
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+});
 
 var app = builder.Build();
 
@@ -70,6 +75,22 @@ app.MapPost("/auth/logout", async (AuthService authService, RefreshTokenRequest 
     var success = await authService.LogoutAsync(request.RefreshToken);
     if (!success) return Results.BadRequest(new { message = "Invalid refresh token" });
     return Results.Ok(new { message = "Logged out successfully" });
+});
+
+// POST /auth/send-verification-email
+app.MapPost("/auth/send-verification-email", async (AuthService authService, SendVerificationEmailRequest request) =>
+{
+    var success = await authService.SendVerificationEmailAsync(request.Email);
+    if (!success) return Results.BadRequest(new { message = "User not found or failed to send email" });
+    return Results.Ok(new { message = "Verification email sent successfully" });
+});
+
+// POST /auth/verify-email
+app.MapPost("/auth/verify-email", async (AuthService authService, VerifyEmailRequest request) =>
+{
+    var success = await authService.VerifyEmailAsync(request.Token);
+    if (!success) return Results.BadRequest(new { message = "Invalid or expired verification token" });
+    return Results.Ok(new { message = "Email verified successfully. Your account has been activated." });
 });
 
 // GET /auth/me
@@ -118,7 +139,8 @@ app.MapGet("/roles", async (IRoleRepository roleRepo) =>
 {
     var roles = await roleRepo.GetAllAsync();
     return Results.Ok(roles.Select(r => new { r.Id, r.Name, r.Description }));
-});
+})
+.RequireAuthorization();
 
 // POST /roles
 app.MapPost("/roles", async (IRoleRepository roleRepo, RoleRequest request) =>
@@ -130,7 +152,36 @@ app.MapPost("/roles", async (IRoleRepository roleRepo, RoleRequest request) =>
     await roleRepo.AddAsync(role);
     await roleRepo.SaveChangesAsync();
     return Results.Created($"/roles/{role.Id}", new { role.Id, role.Name, role.Description });
-});
+})
+.RequireAuthorization("AdminOnly");
+
+// PUT /roles/{id}
+app.MapPut("/roles/{id}", async (Guid id, IRoleRepository roleRepo, RoleRequest request) =>
+{
+    var role = await roleRepo.GetByIdAsync(id);
+    if (role == null) return Results.NotFound(new { message = "Role not found" });
+
+    var existing = await roleRepo.GetByNameAsync(request.Name);
+    if (existing != null && existing.Id != id) return Results.BadRequest(new { message = "Role name already exists" });
+
+    role.Update(request.Name, request.Description);
+    await roleRepo.UpdateAsync(role);
+    await roleRepo.SaveChangesAsync();
+    return Results.Ok(new { role.Id, role.Name, role.Description });
+})
+.RequireAuthorization("AdminOnly");
+
+// DELETE /roles/{id}
+app.MapDelete("/roles/{id}", async (Guid id, IRoleRepository roleRepo) =>
+{
+    var role = await roleRepo.GetByIdAsync(id);
+    if (role == null) return Results.NotFound(new { message = "Role not found" });
+
+    await roleRepo.RemoveAsync(role);
+    await roleRepo.SaveChangesAsync();
+    return Results.Ok(new { message = "Role deleted successfully" });
+})
+.RequireAuthorization("AdminOnly");
 
 // POST /user-roles
 app.MapPost("/user-roles", async (
@@ -152,7 +203,8 @@ app.MapPost("/user-roles", async (
     await userRoleRepo.AddAsync(userRole);
     await userRoleRepo.SaveChangesAsync();
     return Results.Created($"/user-roles/{userRole.Id}", new { userRole.Id, userRole.UserId, userRole.RoleId });
-});
+})
+.RequireAuthorization("AdminOnly");
 
 // DELETE /user-roles
 app.MapDelete("/user-roles", async (
@@ -165,6 +217,7 @@ app.MapDelete("/user-roles", async (
     await userRoleRepo.RemoveAsync(userRole);
     await userRoleRepo.SaveChangesAsync();
     return Results.Ok(new { message = "Role removed from user" });
-});
+})
+.RequireAuthorization("AdminOnly");
 
 app.Run();
