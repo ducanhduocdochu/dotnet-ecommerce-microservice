@@ -52,3 +52,6 @@ D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Api\bin\Debug\net8.0\Microso
 D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Api\bin\Debug\net8.0\Microsoft.IdentityModel.Tokens.dll
 D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Api\bin\Debug\net8.0\System.IdentityModel.Tokens.Jwt.dll
 D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Api\obj\Debug\net8.0\Auth.Api.sourcelink.json
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Api\bin\Debug\net8.0\Newtonsoft.Json.dll
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Api\bin\Debug\net8.0\SendGrid.dll
+D:\Microservice Ecommerce Dotnet8\service\auth\Auth.Api\bin\Debug\net8.0\StarkbankEcdsa.dll

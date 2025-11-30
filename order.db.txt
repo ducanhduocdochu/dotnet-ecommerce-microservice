@@ -1,0 +1,222 @@
+-- ============================================
+-- ORDER SERVICE DATABASE SCHEMA
+-- ============================================
+-- Database: order_db (PostgreSQL)
+-- Service: Order Management
+-- Port: 5003
+-- ============================================
+
+-- ============================================
+-- TABLES
+-- ============================================
+
+-- 1. Orders (Đơn hàng)
+CREATE TABLE orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_number VARCHAR(50) UNIQUE NOT NULL,   -- Mã đơn hàng: ORD-20241129-XXXX
+    user_id UUID NOT NULL,                      -- Reference to auth.users
+    user_name VARCHAR(255),                     -- Denormalized: cached user name
+    user_email VARCHAR(255),                    -- Denormalized: cached user email
+    user_phone VARCHAR(50),                     -- Denormalized: cached user phone
+    
+    -- Pricing
+    subtotal DECIMAL(15,2) NOT NULL DEFAULT 0,  -- Tổng tiền hàng
+    shipping_fee DECIMAL(15,2) DEFAULT 0,       -- Phí vận chuyển
+    discount_amount DECIMAL(15,2) DEFAULT 0,    -- Giảm giá
+    tax_amount DECIMAL(15,2) DEFAULT 0,         -- Thuế
+    total_amount DECIMAL(15,2) NOT NULL,        -- Tổng thanh toán
+    currency VARCHAR(10) DEFAULT 'VND',
+    
+    -- Discount/Coupon
+    discount_code VARCHAR(50),                  -- Mã giảm giá đã áp dụng
+    discount_id UUID,                           -- Reference to discount service
+    
+    -- Status
+    status VARCHAR(50) DEFAULT 'PENDING',       -- PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED, REFUNDED
+    payment_status VARCHAR(50) DEFAULT 'UNPAID', -- UNPAID, PAID, REFUNDED, FAILED
+    payment_method VARCHAR(50),                 -- COD, BANK_TRANSFER, CREDIT_CARD, E_WALLET
+    
+    -- Shipping Address
+    shipping_name VARCHAR(255) NOT NULL,
+    shipping_phone VARCHAR(50) NOT NULL,
+    shipping_address TEXT NOT NULL,
+    shipping_ward VARCHAR(100),
+    shipping_district VARCHAR(100),
+    shipping_city VARCHAR(100),
+    shipping_country VARCHAR(100) DEFAULT 'Vietnam',
+    shipping_postal_code VARCHAR(20),
+    
+    -- Shipping Info
+    shipping_method VARCHAR(50),                -- STANDARD, EXPRESS, SAME_DAY
+    shipping_carrier VARCHAR(100),              -- GHN, GHTK, Viettel Post, etc.
+    tracking_number VARCHAR(100),
+    estimated_delivery DATE,
+    shipped_at TIMESTAMP,
+    delivered_at TIMESTAMP,
+    
+    -- Notes
+    customer_note TEXT,                         -- Ghi chú của khách
+    admin_note TEXT,                            -- Ghi chú nội bộ
+    cancel_reason TEXT,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    confirmed_at TIMESTAMP,
+    cancelled_at TIMESTAMP
+);
+
+CREATE INDEX idx_orders_user_id ON orders(user_id);
+CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX idx_orders_order_number ON orders(order_number);
+CREATE INDEX idx_orders_created_at ON orders(created_at DESC);
+
+-- 2. Order Items (Chi tiết đơn hàng)
+CREATE TABLE order_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    
+    -- Product Info (denormalized from Product service)
+    product_id UUID NOT NULL,
+    product_name VARCHAR(255) NOT NULL,
+    product_slug VARCHAR(255),
+    product_image TEXT,
+    product_sku VARCHAR(100),
+    
+    -- Variant Info (if applicable)
+    variant_id UUID,
+    variant_name VARCHAR(255),
+    variant_options JSONB,                      -- {"Color": "Red", "Size": "XL"}
+    
+    -- Seller Info (denormalized)
+    seller_id UUID NOT NULL,
+    seller_name VARCHAR(255),
+    
+    -- Pricing
+    unit_price DECIMAL(15,2) NOT NULL,          -- Giá gốc
+    sale_price DECIMAL(15,2),                   -- Giá khuyến mãi
+    quantity INT NOT NULL DEFAULT 1,
+    total_price DECIMAL(15,2) NOT NULL,         -- (sale_price or unit_price) * quantity
+    
+    -- Status
+    status VARCHAR(50) DEFAULT 'PENDING',       -- PENDING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED, REFUNDED
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_order_items_order_id ON order_items(order_id);
+CREATE INDEX idx_order_items_product_id ON order_items(product_id);
+CREATE INDEX idx_order_items_seller_id ON order_items(seller_id);
+
+-- 3. Order Status History (Lịch sử trạng thái)
+CREATE TABLE order_status_history (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    status VARCHAR(50) NOT NULL,
+    previous_status VARCHAR(50),
+    note TEXT,
+    changed_by UUID,                            -- User ID who changed the status
+    changed_by_name VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_order_status_history_order_id ON order_status_history(order_id);
+
+-- 4. Order Payments (Thông tin thanh toán)
+CREATE TABLE order_payments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    payment_id UUID,                            -- Reference to Payment service
+    
+    amount DECIMAL(15,2) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'VND',
+    payment_method VARCHAR(50) NOT NULL,        -- COD, BANK_TRANSFER, CREDIT_CARD, MOMO, VNPAY
+    payment_status VARCHAR(50) DEFAULT 'PENDING', -- PENDING, COMPLETED, FAILED, REFUNDED
+    
+    transaction_id VARCHAR(255),                -- External transaction ID
+    payment_gateway VARCHAR(50),                -- VNPAY, MOMO, ZALOPAY, etc.
+    gateway_response JSONB,                     -- Response from payment gateway
+    
+    paid_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_order_payments_order_id ON order_payments(order_id);
+
+-- 5. Order Refunds (Hoàn tiền)
+CREATE TABLE order_refunds (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    order_item_id UUID REFERENCES order_items(id),
+    
+    amount DECIMAL(15,2) NOT NULL,
+    reason TEXT NOT NULL,
+    status VARCHAR(50) DEFAULT 'PENDING',       -- PENDING, APPROVED, REJECTED, COMPLETED
+    
+    refund_method VARCHAR(50),                  -- ORIGINAL_PAYMENT, BANK_TRANSFER, WALLET
+    bank_name VARCHAR(100),
+    bank_account VARCHAR(50),
+    bank_account_name VARCHAR(255),
+    
+    processed_by UUID,
+    processed_by_name VARCHAR(255),
+    processed_at TIMESTAMP,
+    
+    admin_note TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_order_refunds_order_id ON order_refunds(order_id);
+
+-- 6. Shopping Cart (Giỏ hàng - optional, có thể lưu ở client)
+CREATE TABLE cart_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    
+    product_id UUID NOT NULL,
+    product_name VARCHAR(255) NOT NULL,
+    product_image TEXT,
+    product_price DECIMAL(15,2) NOT NULL,
+    
+    variant_id UUID,
+    variant_name VARCHAR(255),
+    variant_price DECIMAL(15,2),
+    
+    seller_id UUID NOT NULL,
+    seller_name VARCHAR(255),
+    
+    quantity INT NOT NULL DEFAULT 1,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(user_id, product_id, variant_id)
+);
+
+CREATE INDEX idx_cart_items_user_id ON cart_items(user_id);
+
+-- ============================================
+-- ORDER STATUS FLOW
+-- ============================================
+-- 
+-- PENDING ──► CONFIRMED ──► PROCESSING ──► SHIPPED ──► DELIVERED
+--    │            │              │            │
+--    └────────────┴──────────────┴────────────┴──► CANCELLED
+--                                                      │
+--                                                      ▼
+--                                                   REFUNDED
+--
+-- ============================================
+
+-- ============================================
+-- PAYMENT STATUS FLOW
+-- ============================================
+--
+-- UNPAID ──► PAID ──► REFUNDED
+--    │
+--    └──► FAILED
+--
+-- ============================================
+

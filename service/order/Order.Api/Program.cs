@@ -1,44 +1,267 @@
+using Microsoft.EntityFrameworkCore;
+using Order.Api.Consumers;
+using Order.Application.DTOs;
+using Order.Application.Interfaces;
+using Order.Application.Services;
+using Order.Infrastructure.DB;
+using Order.Infrastructure.Repositories;
+using Shared.Messaging.Extensions;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+// Database
+builder.Services.AddDbContext<OrderDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DBConnectParam")));
+
+// RabbitMQ + Consumer
+builder.Services.AddRabbitMQ(builder.Configuration);
+builder.Services.AddHostedService<UserProfileUpdatedConsumer>();
+
+// Repositories
+builder.Services.AddScoped<IOrderRepository, OrderRepository>();
+builder.Services.AddScoped<IOrderItemRepository, OrderItemRepository>();
+builder.Services.AddScoped<ICartRepository, CartRepository>();
+builder.Services.AddScoped<IOrderStatusHistoryRepository, OrderStatusHistoryRepository>();
+builder.Services.AddScoped<IOrderRefundRepository, OrderRefundRepository>();
+
+// Services
+builder.Services.AddScoped<OrderService>();
+
+// Authentication
+builder.Services.AddAuthentication("Bearer")
+    .AddJwtBearer("Bearer", options =>
+    {
+        var secret = builder.Configuration["Jwt:Secret"] ?? "ducanhdeptrai123";
+        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+        {
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
+                System.Text.Encoding.ASCII.GetBytes(secret))
+        };
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+    options.AddPolicy("SellerOnly", policy => policy.RequireRole("Seller", "Admin"));
+});
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
 
-var summaries = new[]
+// Helper to get UserId from JWT
+static Guid? GetUserId(HttpContext ctx)
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+    var userIdClaim = ctx.User.FindFirst("sub") ?? ctx.User.FindFirst("nameid") ?? ctx.User.FindFirst("user_id");
+    return userIdClaim != null && Guid.TryParse(userIdClaim.Value, out var userId) ? userId : null;
+}
 
-app.MapGet("/weatherforecast", () =>
+// Database connection check
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+try
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
+    using var scope = app.Services.CreateScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+    await dbContext.Database.OpenConnectionAsync();
+    await dbContext.Database.CloseConnectionAsync();
+    logger.LogInformation("✅ Order Database connection successful!");
+}
+catch (Exception ex)
+{
+    logger.LogError(ex, "❌ Order Database connection failed!");
+}
+
+// ============================================
+// Cart APIs
+// ============================================
+
+app.MapGet("/api/cart", async (OrderService service, HttpContext ctx) =>
+{
+    var userId = GetUserId(ctx);
+    if (userId == null) return Results.Unauthorized();
+    var cart = await service.GetCartAsync(userId.Value);
+    return Results.Ok(cart);
+}).RequireAuthorization().WithName("GetCart").WithTags("Cart");
+
+app.MapPost("/api/cart", async (OrderService service, AddToCartRequest request, HttpContext ctx) =>
+{
+    var userId = GetUserId(ctx);
+    if (userId == null) return Results.Unauthorized();
+    var item = await service.AddToCartAsync(userId.Value, request);
+    return Results.Ok(new { item, message = "Item added to cart" });
+}).RequireAuthorization().WithName("AddToCart").WithTags("Cart");
+
+app.MapPut("/api/cart/{itemId}", async (Guid itemId, OrderService service, UpdateCartItemRequest request, HttpContext ctx) =>
+{
+    var userId = GetUserId(ctx);
+    if (userId == null) return Results.Unauthorized();
+    var result = await service.UpdateCartItemAsync(userId.Value, itemId, request.Quantity);
+    return result != null ? Results.Ok(new { item = result, message = "Cart updated" }) : Results.Ok(new { message = "Item removed" });
+}).RequireAuthorization().WithName("UpdateCartItem").WithTags("Cart");
+
+app.MapDelete("/api/cart/{itemId}", async (Guid itemId, OrderService service, HttpContext ctx) =>
+{
+    var userId = GetUserId(ctx);
+    if (userId == null) return Results.Unauthorized();
+    var success = await service.RemoveCartItemAsync(userId.Value, itemId);
+    return success ? Results.Ok(new { message = "Item removed from cart" }) : Results.NotFound();
+}).RequireAuthorization().WithName("RemoveCartItem").WithTags("Cart");
+
+app.MapDelete("/api/cart", async (OrderService service, HttpContext ctx) =>
+{
+    var userId = GetUserId(ctx);
+    if (userId == null) return Results.Unauthorized();
+    await service.ClearCartAsync(userId.Value);
+    return Results.Ok(new { message = "Cart cleared" });
+}).RequireAuthorization().WithName("ClearCart").WithTags("Cart");
+
+// ============================================
+// Customer Order APIs
+// ============================================
+
+app.MapPost("/api/orders", async (OrderService service, CreateOrderRequest request, HttpContext ctx) =>
+{
+    var userId = GetUserId(ctx);
+    if (userId == null) return Results.Unauthorized();
+    var order = await service.CreateOrderAsync(userId.Value, request);
+    return Results.Created($"/api/orders/{order.Id}", order);
+}).RequireAuthorization().WithName("CreateOrder").WithTags("Orders");
+
+app.MapGet("/api/orders/me", async (OrderService service, int page = 1, int pageSize = 10, string? status = null, HttpContext ctx = null!) =>
+{
+    var userId = GetUserId(ctx);
+    if (userId == null) return Results.Unauthorized();
+    var orders = await service.GetUserOrdersAsync(userId.Value, page, pageSize, status);
+    return Results.Ok(orders);
+}).RequireAuthorization().WithName("GetMyOrders").WithTags("Orders");
+
+app.MapGet("/api/orders/{id}", async (Guid id, OrderService service, HttpContext ctx) =>
+{
+    var userId = GetUserId(ctx);
+    if (userId == null) return Results.Unauthorized();
+    var order = await service.GetOrderByIdAsync(id, userId.Value);
+    return order != null ? Results.Ok(order) : Results.NotFound();
+}).RequireAuthorization().WithName("GetOrderById").WithTags("Orders");
+
+app.MapGet("/api/orders/number/{orderNumber}", async (string orderNumber, OrderService service, HttpContext ctx) =>
+{
+    var userId = GetUserId(ctx);
+    if (userId == null) return Results.Unauthorized();
+    var order = await service.GetOrderByNumberAsync(orderNumber, userId.Value);
+    return order != null ? Results.Ok(order) : Results.NotFound();
+}).RequireAuthorization().WithName("GetOrderByNumber").WithTags("Orders");
+
+app.MapPost("/api/orders/{id}/cancel", async (Guid id, OrderService service, CancelOrderRequest request, HttpContext ctx) =>
+{
+    var userId = GetUserId(ctx);
+    if (userId == null) return Results.Unauthorized();
+    var success = await service.CancelOrderAsync(id, userId.Value, request.Reason);
+    return success ? Results.Ok(new { message = "Order cancelled", status = "CANCELLED" }) : Results.BadRequest(new { message = "Cannot cancel this order" });
+}).RequireAuthorization().WithName("CancelOrder").WithTags("Orders");
+
+app.MapPost("/api/orders/{id}/refund", async (Guid id, OrderService service, CreateRefundRequest request, HttpContext ctx) =>
+{
+    var userId = GetUserId(ctx);
+    if (userId == null) return Results.Unauthorized();
+    var refund = await service.CreateRefundAsync(id, userId.Value, request);
+    return refund != null ? Results.Ok(new { refund, message = "Refund request submitted" }) : Results.BadRequest(new { message = "Cannot create refund" });
+}).RequireAuthorization().WithName("RequestRefund").WithTags("Orders");
+
+// ============================================
+// Seller Order APIs
+// ============================================
+
+app.MapGet("/api/orders/seller", async (OrderService service, int page = 1, int pageSize = 10, string? status = null, HttpContext ctx = null!) =>
+{
+    var userId = GetUserId(ctx);
+    if (userId == null) return Results.Unauthorized();
+    var orders = await service.GetSellerOrdersAsync(userId.Value, page, pageSize, status);
+    return Results.Ok(orders);
+}).RequireAuthorization("SellerOnly").WithName("GetSellerOrders").WithTags("Seller Orders");
+
+app.MapPost("/api/orders/seller/{id}/confirm", async (Guid id, OrderService service, HttpContext ctx) =>
+{
+    var userId = GetUserId(ctx);
+    var userName = ctx.User.FindFirst("name")?.Value;
+    var success = await service.ConfirmOrderAsync(id, userId, userName);
+    return success ? Results.Ok(new { message = "Order confirmed", status = "CONFIRMED" }) : Results.BadRequest(new { message = "Cannot confirm this order" });
+}).RequireAuthorization("SellerOnly").WithName("ConfirmOrder").WithTags("Seller Orders");
+
+app.MapPost("/api/orders/seller/{id}/process", async (Guid id, OrderService service, HttpContext ctx) =>
+{
+    var userId = GetUserId(ctx);
+    var userName = ctx.User.FindFirst("name")?.Value;
+    var success = await service.ProcessOrderAsync(id, userId, userName);
+    return success ? Results.Ok(new { message = "Order processing", status = "PROCESSING" }) : Results.BadRequest(new { message = "Cannot process this order" });
+}).RequireAuthorization("SellerOnly").WithName("ProcessOrder").WithTags("Seller Orders");
+
+app.MapPost("/api/orders/seller/{id}/ship", async (Guid id, OrderService service, ShipOrderRequest request, HttpContext ctx) =>
+{
+    var userId = GetUserId(ctx);
+    var userName = ctx.User.FindFirst("name")?.Value;
+    var success = await service.ShipOrderAsync(id, request, userId, userName);
+    return success ? Results.Ok(new { message = "Order shipped", status = "SHIPPED", tracking_number = request.TrackingNumber }) : Results.BadRequest(new { message = "Cannot ship this order" });
+}).RequireAuthorization("SellerOnly").WithName("ShipOrder").WithTags("Seller Orders");
+
+// ============================================
+// Admin Order APIs
+// ============================================
+
+app.MapGet("/api/orders/admin", async (OrderService service, int page = 1, int pageSize = 20, string? status = null, Guid? userId = null, DateTime? from = null, DateTime? to = null) =>
+{
+    var orders = await service.GetAllOrdersAsync(page, pageSize, status, userId, from, to);
+    return Results.Ok(orders);
+}).RequireAuthorization("AdminOnly").WithName("GetAllOrders").WithTags("Admin");
+
+app.MapGet("/api/orders/admin/{id}", async (Guid id, OrderService service) =>
+{
+    var order = await service.GetOrderByIdAsync(id);
+    return order != null ? Results.Ok(order) : Results.NotFound();
+}).RequireAuthorization("AdminOnly").WithName("AdminGetOrderById").WithTags("Admin");
+
+app.MapPost("/api/orders/admin/{id}/deliver", async (Guid id, OrderService service, HttpContext ctx) =>
+{
+    var userId = GetUserId(ctx);
+    var userName = ctx.User.FindFirst("name")?.Value;
+    var success = await service.DeliverOrderAsync(id, userId, userName);
+    return success ? Results.Ok(new { message = "Order delivered", status = "DELIVERED" }) : Results.BadRequest(new { message = "Cannot mark as delivered" });
+}).RequireAuthorization("AdminOnly").WithName("DeliverOrder").WithTags("Admin");
+
+app.MapGet("/api/orders/admin/refunds", async (OrderService service, int page = 1, int pageSize = 20, string? status = null) =>
+{
+    var refunds = await service.GetRefundsAsync(page, pageSize, status);
+    return Results.Ok(refunds);
+}).RequireAuthorization("AdminOnly").WithName("GetRefunds").WithTags("Admin");
+
+app.MapPut("/api/orders/admin/refunds/{refundId}", async (Guid refundId, OrderService service, ProcessRefundRequest request, HttpContext ctx) =>
+{
+    var userId = GetUserId(ctx);
+    var userName = ctx.User.FindFirst("name")?.Value;
+    var success = await service.ProcessRefundAsync(refundId, request, userId ?? Guid.Empty, userName);
+    return success ? Results.Ok(new { message = "Refund processed", status = request.Status }) : Results.BadRequest(new { message = "Cannot process refund" });
+}).RequireAuthorization("AdminOnly").WithName("ProcessRefund").WithTags("Admin");
+
+// ============================================
+// Internal APIs
+// ============================================
+
+app.MapPost("/api/orders/internal/sync-user-info", async (OrderService service, SyncUserInfoRequest request) =>
+{
+    await service.SyncUserInfoAsync(request.UserId, request.FullName, request.Email, request.Phone);
+    return Results.Ok(new { message = "User info synced", user_id = request.UserId });
+}).WithName("SyncUserInfo").WithTags("Internal");
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}

@@ -4,12 +4,16 @@ using User.Application.Interfaces;
 using User.Application.Services;
 using User.Infrastructure.DB;
 using User.Infrastructure.Repositories;
+using Shared.Messaging.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Database
 builder.Services.AddDbContext<UserDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DBConnectParam")));
+
+// RabbitMQ for event publishing
+builder.Services.AddRabbitMQ(builder.Configuration);
 
 // Repositories
 builder.Services.AddScoped<IUserProfileRepository, UserProfileRepository>();
@@ -64,6 +68,31 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+// Check database connection
+using (var scope = app.Services.CreateScope())
+{
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    var dbContext = scope.ServiceProvider.GetRequiredService<UserDbContext>();
+    
+    try
+    {
+        if (await dbContext.Database.CanConnectAsync())
+        {
+            logger.LogInformation("✅ Database connection successful!");
+            logger.LogInformation("📦 Connection string: {ConnectionString}", 
+                builder.Configuration.GetConnectionString("DBConnectParam")?.Split(";")[0] + "...");
+        }
+        else
+        {
+            logger.LogError("❌ Database connection failed!");
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "❌ Database connection error: {Message}", ex.Message);
+    }
+}
 
 if (app.Environment.IsDevelopment())
 {

@@ -3,6 +3,8 @@ using User.Application.Interfaces;
 using User.Domain.Entities;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Shared.Messaging.RabbitMQ;
+using Shared.Messaging.Events;
 
 namespace User.Application.Services;
 
@@ -14,6 +16,7 @@ public class UserService
     private readonly IUserPreferenceRepository _preferenceRepository;
     private readonly IUserWishlistRepository _wishlistRepository;
     private readonly IUserActivityLogRepository _activityLogRepository;
+    private readonly IEventPublisher? _eventPublisher;
 
     public UserService(
         IUserProfileRepository profileRepository,
@@ -21,7 +24,8 @@ public class UserService
         IUserPaymentMethodRepository paymentMethodRepository,
         IUserPreferenceRepository preferenceRepository,
         IUserWishlistRepository wishlistRepository,
-        IUserActivityLogRepository activityLogRepository)
+        IUserActivityLogRepository activityLogRepository,
+        IEventPublisher? eventPublisher = null)
     {
         _profileRepository = profileRepository;
         _addressRepository = addressRepository;
@@ -29,13 +33,19 @@ public class UserService
         _preferenceRepository = preferenceRepository;
         _wishlistRepository = wishlistRepository;
         _activityLogRepository = activityLogRepository;
+        _eventPublisher = eventPublisher;
     }
 
     // Profile Methods
-    public async Task<UserProfileResponse?> GetProfileAsync(Guid userId)
+    public async Task<UserProfileResponse> GetProfileAsync(Guid userId)
     {
         var profile = await _profileRepository.GetByUserIdAsync(userId);
-        if (profile == null) return null;
+        
+        // Auto-create default profile if not exists (lazy creation)
+        if (profile == null)
+        {
+            profile = await CreateDefaultProfileAsync(userId);
+        }
 
         return new UserProfileResponse(
             profile.Id,
@@ -50,7 +60,19 @@ public class UserService
         );
     }
 
-    public async Task<UserProfileResponse> CreateOrUpdateProfileAsync(Guid userId, UpdateProfileRequest request)
+    /// <summary>
+    /// Create default profile for new user
+    /// </summary>
+    private async Task<UserProfile> CreateDefaultProfileAsync(Guid userId)
+    {
+        var profile = new UserProfile(userId);
+        await _profileRepository.AddAsync(profile);
+        await _profileRepository.SaveChangesAsync();
+        return profile;
+    }
+
+
+    public async Task<UserProfileResponse> CreateOrUpdateProfileAsync(Guid userId, UpdateProfileRequest request, string? fullName = null)
     {
         var profile = await _profileRepository.GetByUserIdAsync(userId);
         
@@ -68,6 +90,9 @@ public class UserService
 
         await _profileRepository.SaveChangesAsync();
 
+        // Publish event to sync denormalized data in other services
+        PublishUserProfileUpdatedEvent(userId, fullName, null, request.Phone, request.AvatarUrl);
+
         return new UserProfileResponse(
             profile.Id,
             profile.UserId,
@@ -79,6 +104,36 @@ public class UserService
             profile.CreatedAt,
             profile.UpdatedAt
         );
+    }
+
+    /// <summary>
+    /// Publish event when user profile is updated (for denormalized data sync)
+    /// </summary>
+    private void PublishUserProfileUpdatedEvent(Guid userId, string? fullName, string? email, string? phone, string? avatarUrl)
+    {
+        if (_eventPublisher == null) return;
+
+        try
+        {
+            var evt = new UserProfileUpdatedEvent
+            {
+                UserId = userId,
+                FullName = fullName,
+                Email = email,
+                Phone = phone,
+                AvatarUrl = avatarUrl
+            };
+
+            _eventPublisher.Publish(
+                EventConstants.UserExchange,
+                EventConstants.UserProfileUpdated,
+                evt
+            );
+        }
+        catch
+        {
+            // Log but don't fail the request if event publishing fails
+        }
     }
 
     public async Task<string?> UpdateAvatarAsync(Guid userId, string avatarUrl)
@@ -337,10 +392,17 @@ public class UserService
     }
 
     // Preference Methods
-    public async Task<UserPreferenceResponse?> GetPreferencesAsync(Guid userId)
+    public async Task<UserPreferenceResponse> GetPreferencesAsync(Guid userId)
     {
         var preference = await _preferenceRepository.GetByUserIdAsync(userId);
-        if (preference == null) return null;
+        
+        // Auto-create default preferences if not exists (lazy creation)
+        if (preference == null)
+        {
+            preference = new UserPreference(userId);
+            await _preferenceRepository.AddAsync(preference);
+            await _preferenceRepository.SaveChangesAsync();
+        }
 
         return new UserPreferenceResponse(
             preference.Id, preference.UserId, preference.Language,

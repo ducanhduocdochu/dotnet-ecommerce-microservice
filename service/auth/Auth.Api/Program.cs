@@ -42,6 +42,31 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
+// Check database connection
+using (var scope = app.Services.CreateScope())
+{
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    var dbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+    
+    try
+    {
+        if (await dbContext.Database.CanConnectAsync())
+        {
+            logger.LogInformation("✅ Database connection successful!");
+            logger.LogInformation("📦 Connection string: {ConnectionString}", 
+                builder.Configuration.GetConnectionString("DBConnectParam")?.Split(";")[0] + "...");
+        }
+        else
+        {
+            logger.LogError("❌ Database connection failed!");
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "❌ Database connection error: {Message}", ex.Message);
+    }
+}
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -206,12 +231,13 @@ app.MapPost("/user-roles", async (
 })
 .RequireAuthorization("AdminOnly");
 
-// DELETE /user-roles
-app.MapDelete("/user-roles", async (
-    IUserRoleRepository userRoleRepo,
-    UserRoleRequest request) =>
+// DELETE /user-roles/{userId}/{roleId}
+app.MapDelete("/user-roles/{userId}/{roleId}", async (
+    Guid userId,
+    Guid roleId,
+    IUserRoleRepository userRoleRepo) =>
 {
-    var userRole = await userRoleRepo.GetByUserIdAndRoleIdAsync(request.UserId, request.RoleId);
+    var userRole = await userRoleRepo.GetByUserIdAndRoleIdAsync(userId, roleId);
     if (userRole == null) return Results.NotFound(new { message = "User role not found" });
 
     await userRoleRepo.RemoveAsync(userRole);

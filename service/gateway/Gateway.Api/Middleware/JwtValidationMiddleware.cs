@@ -34,8 +34,23 @@ public class JwtValidationMiddleware
             "/api/auth/login",
             "/api/auth/refresh",
             "/api/auth/send-verification-email",
-            "/api/auth/verify-email"
+            "/api/auth/verify-email",
+            "/api/auth/logout"  // Logout cũng nên public vì chỉ cần refresh_token
         };
+        
+        // Routes cho phép GET public (xem sản phẩm, danh mục không cần đăng nhập)
+        var publicGetRoutes = new[]
+        {
+            "/api/products",
+            "/api/discounts"
+        };
+        
+        // Cho phép GET requests đến public GET routes
+        if (context.Request.Method == "GET" && publicGetRoutes.Any(route => path.StartsWith(route)))
+        {
+            await _next(context);
+            return;
+        }
 
         if (publicRoutes.Any(route => path.StartsWith(route)))
         {
