@@ -30,6 +30,10 @@ public class OrderItem
     // Status
     public string Status { get; private set; } = "PENDING";
     
+    // Inventory Reservation
+    public Guid? ReservationId { get; private set; }
+    public Guid? WarehouseId { get; private set; }
+    
     public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; private set; } = DateTime.UtcNow;
 
@@ -80,6 +84,13 @@ public class OrderItem
     public void UpdateSellerInfo(string? sellerName)
     {
         SellerName = sellerName;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetReservationInfo(Guid? reservationId, Guid? warehouseId)
+    {
+        ReservationId = reservationId;
+        WarehouseId = warehouseId;
         UpdatedAt = DateTime.UtcNow;
     }
 }

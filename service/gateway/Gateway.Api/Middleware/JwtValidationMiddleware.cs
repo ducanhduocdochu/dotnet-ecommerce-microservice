@@ -25,24 +25,43 @@ public class JwtValidationMiddleware
     {
         var path = context.Request.Path.Value?.ToLower() ?? "";
         
-        // Public routes không cần JWT validation
+        // ============================================
+        // PUBLIC ROUTES - Không cần JWT validation
+        // ============================================
         var publicRoutes = new[]
         {
+            // Health check
             "/health",
             "/swagger",
+            
+            // Auth
             "/api/auth/register",
             "/api/auth/login",
             "/api/auth/refresh",
             "/api/auth/send-verification-email",
             "/api/auth/verify-email",
-            "/api/auth/logout"  // Logout cũng nên public vì chỉ cần refresh_token
+            "/api/auth/logout",
+            
+            // Payment Callbacks (Webhooks từ Payment Gateways)
+            "/api/payments/callback",
+            "/api/payments/return",
+            
+            // Inventory check (for product display)
+            "/api/inventory/check",
+            "/api/inventory/product",
+            "/api/inventory/products"
         };
         
-        // Routes cho phép GET public (xem sản phẩm, danh mục không cần đăng nhập)
+        // ============================================
+        // PUBLIC GET ROUTES - GET requests không cần đăng nhập
+        // ============================================
         var publicGetRoutes = new[]
         {
-            "/api/products",
-            "/api/discounts"
+            "/api/products",          // View products
+            "/api/categories",        // View categories
+            "/api/discounts",         // View discounts/promotions
+            "/api/discounts/promotions",
+            "/api/discounts/flash-sales"
         };
         
         // Cho phép GET requests đến public GET routes
@@ -52,19 +71,25 @@ public class JwtValidationMiddleware
             return;
         }
 
+        // Cho phép các public routes
         if (publicRoutes.Any(route => path.StartsWith(route)))
         {
             await _next(context);
             return;
         }
 
-        // Validate JWT token cho các routes cần authentication
+        // ============================================
+        // VALIDATE JWT TOKEN
+        // ============================================
         var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
         if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
         {
             _logger.LogWarning("Unauthorized request to {Path} - No JWT token", path);
             context.Response.StatusCode = 401;
-            await context.Response.WriteAsync("Unauthorized: JWT token required");
+            await context.Response.WriteAsJsonAsync(new { 
+                error = "Unauthorized",
+                message = "JWT token required" 
+            });
             return;
         }
 
@@ -91,15 +116,27 @@ public class JwtValidationMiddleware
 
             _logger.LogDebug("JWT token validated successfully for {Path}", path);
         }
+        catch (SecurityTokenExpiredException)
+        {
+            _logger.LogWarning("JWT token expired for {Path}", path);
+            context.Response.StatusCode = 401;
+            await context.Response.WriteAsJsonAsync(new { 
+                error = "TokenExpired",
+                message = "JWT token has expired" 
+            });
+            return;
+        }
         catch (Exception ex)
         {
             _logger.LogWarning("JWT validation failed for {Path}: {Error}", path, ex.Message);
             context.Response.StatusCode = 401;
-            await context.Response.WriteAsync("Unauthorized: Invalid JWT token");
+            await context.Response.WriteAsJsonAsync(new { 
+                error = "InvalidToken",
+                message = "Invalid JWT token" 
+            });
             return;
         }
 
         await _next(context);
     }
 }
-

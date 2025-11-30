@@ -1,11 +1,12 @@
 ﻿{
   "$schema": "http://json.schemastore.org/launchsettings.json",
   "profiles": {
-    "http": {
+    "Payment.Api": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": false,
-      "applicationUrl": "http://localhost:5004",
+      "launchUrl": "swagger",
+      "applicationUrl": "http://localhost:5007",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }

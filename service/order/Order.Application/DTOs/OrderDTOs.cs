@@ -145,3 +145,52 @@ public record OrderCreatedResponse(
     string? PaymentUrl
 );
 
+// Checkout DTOs
+public record CheckoutRequest(
+    List<CheckoutItemRequest> Items,
+    ShippingAddressRequest Shipping,
+    string? ShippingMethod = "STANDARD",
+    string? PaymentMethod = "BANK_TRANSFER",
+    string? PaymentGateway = "VNPAY",
+    string? DiscountCode = null,
+    string? CustomerNote = null,
+    string? UserName = null,
+    string? UserEmail = null,
+    string? UserPhone = null,
+    string? ReturnUrl = null,
+    string? CancelUrl = null
+);
+
+public record CheckoutItemRequest(
+    Guid ProductId,
+    string ProductName,
+    Guid SellerId,
+    decimal UnitPrice,
+    int Quantity,
+    Guid? CategoryId = null,
+    string? ProductSlug = null,
+    string? ProductImage = null,
+    string? ProductSku = null,
+    Guid? VariantId = null,
+    string? VariantName = null,
+    string? VariantOptions = null,
+    string? SellerName = null,
+    decimal? SalePrice = null
+);
+
+public record CheckoutResult(
+    bool Success,
+    OrderCreatedResponse? Order,
+    string? PaymentUrl,
+    string Message
+);
+
+// Payment callback DTOs
+public record PaymentCallbackRequest(
+    Guid OrderId,
+    Guid TransactionId,
+    bool Success,
+    string? ErrorCode = null,
+    string? ErrorMessage = null
+);
+

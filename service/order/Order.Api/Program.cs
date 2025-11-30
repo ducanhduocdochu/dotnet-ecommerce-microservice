@@ -1,11 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Order.Api.Consumers;
+using Order.Application.Clients;
 using Order.Application.DTOs;
 using Order.Application.Interfaces;
 using Order.Application.Services;
+using Order.Infrastructure.Clients;
 using Order.Infrastructure.DB;
 using Order.Infrastructure.Repositories;
 using Shared.Messaging.Extensions;
+using Shared.Messaging.RabbitMQ;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,9 +16,27 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<OrderDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DBConnectParam")));
 
-// RabbitMQ + Consumer
+// RabbitMQ
 builder.Services.AddRabbitMQ(builder.Configuration);
-builder.Services.AddHostedService<UserProfileUpdatedConsumer>();
+
+// HTTP Clients
+builder.Services.AddHttpClient<IDiscountClient, DiscountClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:Discount"] ?? "http://localhost:5006");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
+builder.Services.AddHttpClient<IInventoryClient, InventoryClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:Inventory"] ?? "http://localhost:5005");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
+builder.Services.AddHttpClient<IPaymentClient, PaymentClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:Payment"] ?? "http://localhost:5007");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
 
 // Repositories
 builder.Services.AddScoped<IOrderRepository, OrderRepository>();
@@ -26,6 +47,11 @@ builder.Services.AddScoped<IOrderRefundRepository, OrderRefundRepository>();
 
 // Services
 builder.Services.AddScoped<OrderService>();
+
+// Consumers
+builder.Services.AddHostedService<UserProfileUpdatedConsumer>();
+builder.Services.AddHostedService<PaymentSuccessConsumer>();
+builder.Services.AddHostedService<PaymentFailedConsumer>();
 
 // Authentication
 builder.Services.AddAuthentication("Bearer")
@@ -75,8 +101,7 @@ try
 {
     using var scope = app.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
-    await dbContext.Database.OpenConnectionAsync();
-    await dbContext.Database.CloseConnectionAsync();
+    await dbContext.Database.EnsureCreatedAsync();
     logger.LogInformation("✅ Order Database connection successful!");
 }
 catch (Exception ex)
@@ -127,6 +152,53 @@ app.MapDelete("/api/cart", async (OrderService service, HttpContext ctx) =>
     await service.ClearCartAsync(userId.Value);
     return Results.Ok(new { message = "Cart cleared" });
 }).RequireAuthorization().WithName("ClearCart").WithTags("Cart");
+
+// ============================================
+// Checkout API (New - with HTTP clients)
+// ============================================
+
+app.MapPost("/api/orders/checkout", async (OrderService service, CheckoutRequest request, HttpContext ctx) =>
+{
+    var userId = GetUserId(ctx);
+    if (userId == null) return Results.Unauthorized();
+    
+    try
+    {
+        var result = await service.CheckoutAsync(userId.Value, request);
+        if (result.Success)
+        {
+            return Results.Ok(result);
+        }
+        return Results.BadRequest(new { message = result.Message });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Checkout failed for user {UserId}", userId);
+        return Results.BadRequest(new { message = "Checkout failed. Please try again." });
+    }
+}).RequireAuthorization().WithName("Checkout").WithTags("Checkout");
+
+// ============================================
+// Payment Callback API (Internal)
+// ============================================
+
+app.MapPost("/api/orders/payment-callback", async (OrderService service, PaymentCallbackRequest request) =>
+{
+    if (request.Success)
+    {
+        var result = await service.HandlePaymentSuccessAsync(request.OrderId, request.TransactionId);
+        return result 
+            ? Results.Ok(new { message = "Payment confirmed", order_id = request.OrderId })
+            : Results.BadRequest(new { message = "Failed to confirm payment" });
+    }
+    else
+    {
+        var result = await service.HandlePaymentFailedAsync(request.OrderId, request.ErrorMessage ?? "Payment failed");
+        return result 
+            ? Results.Ok(new { message = "Payment failure recorded", order_id = request.OrderId })
+            : Results.BadRequest(new { message = "Failed to record payment failure" });
+    }
+}).WithName("PaymentCallback").WithTags("Internal");
 
 // ============================================
 // Customer Order APIs

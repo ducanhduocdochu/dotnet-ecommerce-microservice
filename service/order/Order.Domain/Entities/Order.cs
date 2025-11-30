@@ -51,6 +51,9 @@ public class OrderEntity
     public string? AdminNote { get; private set; }
     public string? CancelReason { get; private set; }
     
+    // Payment Transaction
+    public Guid? PaymentTransactionId { get; private set; }
+    
     // Timestamps
     public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; private set; } = DateTime.UtcNow;
@@ -120,6 +123,35 @@ public class OrderEntity
         DiscountId = discountId;
         DiscountAmount = amount;
         TotalAmount = Subtotal + ShippingFee - amount + TaxAmount;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetDiscount(Guid? discountId, string? discountCode, decimal discountAmount)
+    {
+        DiscountId = discountId;
+        DiscountCode = discountCode;
+        DiscountAmount = discountAmount;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void SetPaymentTransaction(Guid? transactionId)
+    {
+        PaymentTransactionId = transactionId;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void ConfirmPayment()
+    {
+        Status = "CONFIRMED";
+        PaymentStatus = "PAID";
+        ConfirmedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    public void FailPayment()
+    {
+        Status = "PAYMENT_FAILED";
+        PaymentStatus = "FAILED";
         UpdatedAt = DateTime.UtcNow;
     }
 

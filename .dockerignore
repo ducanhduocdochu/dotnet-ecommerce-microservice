@@ -1,0 +1,47 @@
+# Build artifacts
+**/bin/
+**/obj/
+**/out/
+
+# IDE folders
+**/.vs/
+**/.vscode/
+**/.idea/
+**/*.user
+**/*.suo
+
+# Documentation
+**/*.md
+!README.md
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker
+**/Dockerfile
+**/docker-compose*.yml
+.dockerignore
+
+# Tests
+**/TestResults/
+**/*.trx
+
+# Logs
+**/logs/
+**/*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# NuGet
+**/*.nupkg
+**/.nuget/
+
+# Misc
+**/node_modules/
+**/.env
+**/.env.*
+

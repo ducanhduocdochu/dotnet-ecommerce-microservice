@@ -1,0 +1,359 @@
+-- ============================================
+-- INVENTORY SERVICE API ENDPOINTS
+-- ============================================
+-- Base URL: /api/inventory (via Gateway: /api/inventory)
+-- Port: 5005
+-- ============================================
+
+-- ============================================
+-- INVENTORY CHECK APIs (Public/Internal)
+-- ============================================
+
+-- Check stock availability (for cart/checkout)
+POST /api/inventory/check
+Body: {
+    items: [{
+        product_id,
+        variant_id?,
+        quantity
+    }]
+}
+Response: {
+    available: true/false,
+    items: [{
+        product_id,
+        variant_id,
+        requested: 10,
+        available: 8,
+        is_available: false
+    }]
+}
+
+-- Get stock info for a product
+GET /api/inventory/product/{productId}
+Query: ?variant_id=xxx&warehouse_id=xxx
+Response: {
+    product_id,
+    variant_id,
+    total_quantity,
+    reserved_quantity,
+    available_quantity,
+    warehouses: [{
+        warehouse_id,
+        warehouse_name,
+        quantity,
+        available
+    }]
+}
+
+-- Get stock for multiple products (batch)
+POST /api/inventory/products
+Body: { product_ids: [uuid1, uuid2, ...] }
+Response: {
+    items: [{
+        product_id,
+        variant_id,
+        available_quantity
+    }]
+}
+
+-- ============================================
+-- STOCK RESERVATION APIs (Called by Order Service)
+-- ============================================
+
+-- Reserve stock (when order created)
+POST /api/inventory/reserve
+Body: {
+    order_id,
+    order_number,
+    items: [{
+        product_id,
+        variant_id?,
+        order_item_id,
+        quantity
+    }],
+    expiration_minutes: 30
+}
+Response: {
+    success: true,
+    reservation_ids: [uuid1, uuid2],
+    expires_at
+}
+
+-- Commit reservation (when payment success)
+POST /api/inventory/commit
+Body: { order_id }
+Response: { success: true, message: "Stock committed" }
+
+-- Release reservation (when order cancelled/payment failed)
+POST /api/inventory/release
+Body: { order_id, reason? }
+Response: { success: true, message: "Stock released" }
+
+-- Deduct stock (when order shipped - optional)
+POST /api/inventory/deduct
+Body: {
+    order_id,
+    order_number,
+    items: [{
+        product_id,
+        variant_id?,
+        quantity
+    }]
+}
+Response: { success: true }
+
+-- Add stock back (when order returned)
+POST /api/inventory/return
+Body: {
+    order_id,
+    order_number,
+    items: [{
+        product_id,
+        variant_id?,
+        quantity,
+        reason
+    }]
+}
+Response: { success: true }
+
+-- ============================================
+-- WAREHOUSE APIs (Admin)
+-- ============================================
+
+-- Get all warehouses
+GET /api/inventory/warehouses
+Headers: Authorization: Bearer {token}
+Response: { items: [{ id, code, name, city, is_active, is_default }] }
+
+-- Get warehouse detail
+GET /api/inventory/warehouses/{id}
+Headers: Authorization: Bearer {token}
+Response: { id, code, name, address, city, phone, manager_name, ... }
+
+-- Create warehouse
+POST /api/inventory/warehouses
+Headers: Authorization: Bearer {token}
+Body: { code, name, address?, city?, phone?, manager_name?, is_default? }
+Response: { id, code, name, message: "Warehouse created" }
+
+-- Update warehouse
+PUT /api/inventory/warehouses/{id}
+Headers: Authorization: Bearer {token}
+Body: { name?, address?, city?, phone?, is_active?, is_default? }
+Response: { id, message: "Warehouse updated" }
+
+-- ============================================
+-- INVENTORY MANAGEMENT APIs (Admin/Seller)
+-- ============================================
+
+-- Get inventory list
+GET /api/inventory/stocks
+Headers: Authorization: Bearer {token}
+Query: ?warehouse_id=xxx&low_stock=true&page=1&pageSize=20
+Response: { 
+    items: [{
+        id, product_id, sku, warehouse_name,
+        quantity, reserved_quantity, available_quantity,
+        low_stock_threshold, is_low_stock, location
+    }],
+    total, page, pageSize
+}
+
+-- Get inventory detail
+GET /api/inventory/stocks/{id}
+Headers: Authorization: Bearer {token}
+Response: {
+    id, product_id, variant_id, sku,
+    warehouse: { id, name },
+    quantity, reserved_quantity, available_quantity,
+    low_stock_threshold, reorder_point, reorder_quantity,
+    location, recent_transactions: [...]
+}
+
+-- Update inventory (set stock level)
+PUT /api/inventory/stocks/{id}
+Headers: Authorization: Bearer {token}
+Body: { 
+    quantity?, 
+    low_stock_threshold?, 
+    reorder_point?, 
+    reorder_quantity?,
+    location?,
+    reason: "Stock adjustment"
+}
+Response: { id, quantity, message: "Inventory updated" }
+
+-- Adjust inventory (add/subtract)
+POST /api/inventory/stocks/{id}/adjust
+Headers: Authorization: Bearer {token}
+Body: {
+    adjustment: +10 or -5,
+    reason: "Damaged goods" | "Found extra" | "Correction"
+}
+Response: { 
+    id, 
+    quantity_before, 
+    quantity_after, 
+    message: "Inventory adjusted" 
+}
+
+-- Initialize inventory for product
+POST /api/inventory/stocks
+Headers: Authorization: Bearer {token}
+Body: {
+    product_id,
+    variant_id?,
+    sku?,
+    warehouse_id,
+    quantity,
+    low_stock_threshold?,
+    location?
+}
+Response: { id, message: "Inventory created" }
+
+-- ============================================
+-- STOCK TRANSFER APIs (Admin)
+-- ============================================
+
+-- Transfer stock between warehouses
+POST /api/inventory/transfer
+Headers: Authorization: Bearer {token}
+Body: {
+    from_warehouse_id,
+    to_warehouse_id,
+    items: [{
+        product_id,
+        variant_id?,
+        quantity
+    }],
+    note?
+}
+Response: { 
+    transfer_id, 
+    items_transferred: 3, 
+    message: "Stock transferred" 
+}
+
+-- ============================================
+-- IMPORT/PURCHASE ORDER APIs (Admin)
+-- ============================================
+
+-- Get purchase orders
+GET /api/inventory/purchase-orders
+Headers: Authorization: Bearer {token}
+Query: ?status=PENDING&page=1&pageSize=20
+Response: { items: [...], total, page, pageSize }
+
+-- Create purchase order
+POST /api/inventory/purchase-orders
+Headers: Authorization: Bearer {token}
+Body: {
+    supplier_name,
+    supplier_contact?,
+    warehouse_id,
+    expected_date?,
+    items: [{
+        product_id,
+        variant_id?,
+        sku,
+        product_name,
+        quantity,
+        unit_price?
+    }],
+    note?
+}
+Response: { id, po_number, status: "DRAFT", message: "Purchase order created" }
+
+-- Update purchase order
+PUT /api/inventory/purchase-orders/{id}
+Headers: Authorization: Bearer {token}
+Body: { supplier_name?, expected_date?, note? }
+Response: { id, message: "Purchase order updated" }
+
+-- Approve purchase order
+POST /api/inventory/purchase-orders/{id}/approve
+Headers: Authorization: Bearer {token}
+Response: { id, status: "APPROVED", message: "Purchase order approved" }
+
+-- Receive purchase order (nhập kho)
+POST /api/inventory/purchase-orders/{id}/receive
+Headers: Authorization: Bearer {token}
+Body: {
+    items: [{
+        item_id,
+        quantity_received
+    }]
+}
+Response: { id, status: "RECEIVED", message: "Stock received" }
+
+-- ============================================
+-- TRANSACTION HISTORY APIs (Admin)
+-- ============================================
+
+-- Get inventory transactions
+GET /api/inventory/transactions
+Headers: Authorization: Bearer {token}
+Query: ?product_id=xxx&type=RESERVE&from=2024-01-01&page=1&pageSize=50
+Response: { 
+    items: [{
+        id, type, quantity_change, 
+        quantity_before, quantity_after,
+        reference_type, reference_code,
+        reason, created_by_name, created_at
+    }],
+    total, page, pageSize
+}
+
+-- ============================================
+-- LOW STOCK ALERTS APIs (Admin)
+-- ============================================
+
+-- Get low stock items
+GET /api/inventory/alerts/low-stock
+Headers: Authorization: Bearer {token}
+Query: ?warehouse_id=xxx
+Response: {
+    items: [{
+        product_id, sku, product_name,
+        warehouse_name,
+        available_quantity,
+        low_stock_threshold,
+        reorder_point,
+        suggested_reorder: 100
+    }],
+    total_low_stock_items
+}
+
+-- ============================================
+-- INTERNAL APIs (for service-to-service)
+-- ============================================
+
+-- Sync product info (when product updated)
+POST /api/inventory/internal/sync-product
+Body: { product_id, sku?, is_active? }
+Response: { success: true }
+
+-- Background: Release expired reservations
+-- (Cron job calls this periodically)
+POST /api/inventory/internal/release-expired
+Response: { released_count: 15 }
+
+-- ============================================
+-- INVENTORY EVENTS (RabbitMQ)
+-- ============================================
+--
+-- Consumed:
+--   - OrderCreatedEvent → Reserve stock
+--   - PaymentCompletedEvent → Commit reservation
+--   - OrderCancelledEvent → Release reservation
+--   - OrderShippedEvent → Deduct stock (optional)
+--   - OrderReturnedEvent → Add stock back
+--
+-- Published:
+--   - LowStockEvent → Notify admin
+--   - OutOfStockEvent → Update product availability
+--   - StockUpdatedEvent → Sync to Product service
+--
+-- ============================================
+
