@@ -65,19 +65,21 @@
                            SERVICE PORTS & DATABASES
 ================================================================================
 
-┌──────────────────┬──────────┬─────────────────┬─────────────────────────────┐
-│     Service      │   Port   │    Database     │         Description         │
-├──────────────────┼──────────┼─────────────────┼─────────────────────────────┤
-│ Gateway.Api      │   5000   │       -         │ API Gateway (YARP)          │
-│ Auth.Api         │   5001   │ auth_db         │ Authentication, JWT, Roles  │
-│ User.Api         │   5002   │ user_db         │ User Profile, Preferences   │
-│ Order.Api        │   5003   │ order_db        │ Orders, Cart                │
-│ Product.Api      │   5004   │ product_db      │ Products, Reviews, Category │
-│ Inventory.Api    │   5005   │ inventory_db    │ Stock, Warehouse, Reserve   │
-│ Discount.Api     │   5006   │ discount_db     │ Coupons, Promotions, Flash  │
-│ Payment.Api      │   5007   │ payment_db      │ Transactions, Refunds       │
-│ Notification.Api │   5008   │ notification_db │ Email, SMS, Push            │
-└──────────────────┴──────────┴─────────────────┴─────────────────────────────┘
+┌──────────────────┬──────────┬──────────┬─────────────────┬──────────────────────────┐
+│     Service      │ REST Port│ gRPC Port│    Database     │       Description        │
+├──────────────────┼──────────┼──────────┼─────────────────┼──────────────────────────┤
+│ Gateway.Api      │   5010   │    -     │       -         │ API Gateway (YARP)       │
+│ Auth.Api         │   5000   │    -     │ auth_db         │ Authentication, JWT      │
+│ User.Api         │   5001   │    -     │ user_db         │ User Profile, Prefs      │
+│ Product.Api      │   5002   │    -     │ product_db      │ Products, Reviews, Cat   │
+│ Order.Api        │   5003   │    -     │ order_db        │ Orders, Cart             │
+│ Payment.Api      │   5004   │    -     │ payment_db      │ Transactions, Refunds    │
+│ Inventory.Api    │   5005   │   5015   │ inventory_db    │ Stock, Reserve (gRPC)    │
+│ Discount.Api     │   5006   │   5016   │ discount_db     │ Coupons, Promo (gRPC)    │
+│ Notification.Api │   5007   │    -     │ notification_db │ Email, SMS, Push         │
+└──────────────────┴──────────┴──────────┴─────────────────┴──────────────────────────┘
+
+Note: Services with gRPC ports expose both REST (external) and gRPC (internal) APIs
 
 
 ================================================================================
@@ -85,39 +87,41 @@
 ================================================================================
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                          HTTP SYNCHRONOUS                                    │
-│                    (Cần response ngay - User đang chờ)                       │
+│                          HYBRID ARCHITECTURE                                 │
+│                    REST (External) + gRPC (Internal)                         │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   ┌─────────────────────────────────────────────────────────────────────────┐
-  │ CHECKOUT FLOW                                                            │
+  │ CHECKOUT FLOW (gRPC for Critical Path - 5x faster!)                     │
   └─────────────────────────────────────────────────────────────────────────┘
 
-  Order ──HTTP POST──► Discount     /api/discounts/validate
-         ◄────────────              { valid, discount_amount }
+  Order ──gRPC Call──► Discount     ValidateDiscount(code, userId, amount)
+         ◄───────────              { valid: true, discount_amount } ~12ms
 
-  Order ──HTTP POST──► Discount     /api/discounts/apply
-         ◄────────────              { success, discount_id }
+  Order ──gRPC Call──► Discount     ApplyDiscount(code, orderId, amount)
+         ◄───────────              { success: true, discount_id } ~14ms
 
-  Order ──HTTP POST──► Inventory    /api/inventory/check
-         ◄────────────              { available: true/false }
+  Order ──gRPC Call──► Inventory    CheckStock(productId, quantity)
+         ◄───────────              { available: true } ~10ms
 
-  Order ──HTTP POST──► Inventory    /api/inventory/reserve
-         ◄────────────              { reservation_id }
+  Order ──gRPC Call──► Inventory    ReserveStock(orderId, items[])
+         ◄───────────              { reservation_ids[] } ~20ms
 
   Order ──HTTP POST──► Payment      /api/payments/create
-         ◄────────────              { payment_url, transaction_id }
+         ◄────────────              { payment_url, transaction_id } ~150ms
+
+  Total: ~216ms (vs ~500ms with REST only)
 
 
   ┌─────────────────────────────────────────────────────────────────────────┐
-  │ PRODUCT DISPLAY FLOW                                                     │
+  │ PRODUCT DISPLAY FLOW (Can use gRPC batch or Cache)                      │
   └─────────────────────────────────────────────────────────────────────────┘
 
-  Product ──HTTP GET──► Inventory   /api/inventory/stock/{productId}
-           ◄──────────              { quantity_available }
+  Product ──gRPC Call──► Inventory   GetStockBatch(productIds[])
+           ◄──────────              { stock_map } ~40ms
 
-  Product ──HTTP GET──► Discount    /api/discounts/internal/products
-           ◄──────────              { active_discounts[] }
+  Product ──Cache/gRPC──► Discount   GetProductDiscounts(productIds[])
+           ◄──────────              { discounts_map } ~15ms or from cache
 
 
 ┌─────────────────────────────────────────────────────────────────────────────┐

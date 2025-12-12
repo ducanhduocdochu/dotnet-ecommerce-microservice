@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Discount.Api.Consumers;
+using Discount.Api.Services;
 using Discount.Application.DTOs;
 using Discount.Application.Interfaces;
 using Discount.Application.Services;
@@ -11,6 +12,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Shared.Messaging.Extensions;
+using Shared.Caching.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,6 +23,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Database
 builder.Services.AddDbContext<DiscountDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Redis Caching
+builder.Services.AddRedisCaching(builder.Configuration);
 
 // RabbitMQ
 builder.Services.AddRabbitMQ(builder.Configuration);
@@ -38,6 +43,9 @@ builder.Services.AddScoped<IFlashSaleItemRepository, FlashSaleItemRepository>();
 
 // Services
 builder.Services.AddScoped<DiscountService>();
+
+// gRPC
+builder.Services.AddGrpc();
 
 // Consumers
 builder.Services.AddHostedService<OrderConfirmedConsumer>();
@@ -104,6 +112,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Map gRPC Services (Port 5016)
+app.MapGrpcService<DiscountGrpcService>();
+app.MapGet("/", () => "Discount Service - REST API (5006) & gRPC (5016)");
 
 // ============================================
 // HELPER METHODS

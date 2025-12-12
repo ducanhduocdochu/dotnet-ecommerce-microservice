@@ -16,6 +16,8 @@
     <ProjectReference Include="..\Discount.Application\Discount.Application.csproj" />
     <ProjectReference Include="..\Discount.Infrastructure\Discount.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\shared\Shared.Messaging\Shared.Messaging.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.Protos\Shared.Protos.csproj" />
+    <ProjectReference Include="..\..\..\shared\Shared.Caching\Shared.Caching.csproj" />
   </ItemGroup>
 
 </Project>

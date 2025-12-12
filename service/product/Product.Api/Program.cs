@@ -1,17 +1,22 @@
 using Microsoft.EntityFrameworkCore;
 using Product.Api.Consumers;
+using Product.Api.Services;
 using Product.Application.DTOs;
 using Product.Application.Interfaces;
 using Product.Application.Services;
 using Product.Infrastructure.DB;
 using Product.Infrastructure.Repositories;
 using Shared.Messaging.Extensions;
+using Shared.Caching.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Database
 builder.Services.AddDbContext<ProductDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DBConnectParam")));
+
+// Redis Caching
+builder.Services.AddRedisCaching(builder.Configuration);
 
 // RabbitMQ for event consuming
 builder.Services.AddRabbitMQ(builder.Configuration);
@@ -28,6 +33,7 @@ builder.Services.AddScoped<ITagRepository, TagRepository>();
 
 // Services
 builder.Services.AddScoped<ProductService>();
+builder.Services.AddScoped<CachedProductService>();
 
 // Authentication
 builder.Services.AddAuthentication("Bearer")
@@ -94,31 +100,31 @@ Guid? GetUserId(HttpContext ctx) =>
 // Category APIs (Public)
 // ============================================
 
-app.MapGet("/api/categories", async (ProductService service) =>
-    Results.Ok(await service.GetCategoryTreeAsync()))
+app.MapGet("/api/categories", async (CachedProductService cachedService) =>
+    Results.Ok(await cachedService.GetCategoryTreeAsync()))
 .WithName("GetCategories").WithTags("Categories");
 
-app.MapGet("/api/categories/{id}", async (Guid id, ProductService service) =>
+app.MapGet("/api/categories/{id}", async (Guid id, CachedProductService cachedService) =>
 {
-    var category = await service.GetCategoryByIdAsync(id);
+    var category = await cachedService.GetCategoryByIdAsync(id);
     return category == null ? Results.NotFound() : Results.Ok(category);
 }).WithName("GetCategoryById").WithTags("Categories");
 
-app.MapPost("/api/categories", async (ProductService service, CreateCategoryRequest request) =>
+app.MapPost("/api/categories", async (CachedProductService cachedService, CreateCategoryRequest request) =>
 {
-    var category = await service.CreateCategoryAsync(request);
+    var category = await cachedService.CreateCategoryAsync(request);
     return Results.Created($"/api/categories/{category.Id}", category);
 }).RequireAuthorization("AdminOnly").WithName("CreateCategory").WithTags("Categories");
 
-app.MapPut("/api/categories/{id}", async (Guid id, ProductService service, UpdateCategoryRequest request) =>
+app.MapPut("/api/categories/{id}", async (Guid id, CachedProductService cachedService, UpdateCategoryRequest request) =>
 {
-    var category = await service.UpdateCategoryAsync(id, request);
+    var category = await cachedService.UpdateCategoryAsync(id, request);
     return category == null ? Results.NotFound() : Results.Ok(category);
 }).RequireAuthorization("AdminOnly").WithName("UpdateCategory").WithTags("Categories");
 
-app.MapDelete("/api/categories/{id}", async (Guid id, ProductService service) =>
+app.MapDelete("/api/categories/{id}", async (Guid id, CachedProductService cachedService) =>
 {
-    var success = await service.DeleteCategoryAsync(id);
+    var success = await cachedService.DeleteCategoryAsync(id);
     return success ? Results.Ok(new { message = "Category deleted" }) : Results.NotFound();
 }).RequireAuthorization("AdminOnly").WithName("DeleteCategory").WithTags("Categories");
 
@@ -158,29 +164,29 @@ app.MapDelete("/api/brands/{id}", async (Guid id, ProductService service) =>
 // Product APIs (Public)
 // ============================================
 
-app.MapGet("/api/products", async (ProductService service, Guid? category_id, Guid? brand_id, decimal? min_price, decimal? max_price, string? search, string sort = "newest", int page = 1, int pageSize = 20) =>
+app.MapGet("/api/products", async (CachedProductService cachedService, Guid? category_id, Guid? brand_id, decimal? min_price, decimal? max_price, string? search, string sort = "newest", int page = 1, int pageSize = 20) =>
 {
     var filter = new ProductFilterRequest(category_id, brand_id, min_price, max_price, search, null, sort, page, pageSize);
-    return Results.Ok(await service.GetProductsAsync(filter));
+    return Results.Ok(await cachedService.GetProductsAsync(filter));
 }).WithName("GetProducts").WithTags("Products");
 
-app.MapGet("/api/products/featured", async (ProductService service, int limit = 10) =>
-    Results.Ok(await service.GetFeaturedProductsAsync(limit)))
+app.MapGet("/api/products/featured", async (CachedProductService cachedService, int limit = 10) =>
+    Results.Ok(await cachedService.GetFeaturedProductsAsync(limit)))
 .WithName("GetFeaturedProducts").WithTags("Products");
 
-app.MapGet("/api/products/search", async (ProductService service, string q, int page = 1, int pageSize = 20) =>
-    Results.Ok(await service.SearchProductsAsync(q, page, pageSize)))
+app.MapGet("/api/products/search", async (CachedProductService cachedService, string q, int page = 1, int pageSize = 20) =>
+    Results.Ok(await cachedService.SearchProductsAsync(q, page, pageSize)))
 .WithName("SearchProducts").WithTags("Products");
 
-app.MapGet("/api/products/{id}", async (Guid id, ProductService service) =>
+app.MapGet("/api/products/{id}", async (Guid id, CachedProductService cachedService) =>
 {
-    var product = await service.GetProductByIdAsync(id);
+    var product = await cachedService.GetProductByIdAsync(id);
     return product == null ? Results.NotFound() : Results.Ok(product);
 }).WithName("GetProductById").WithTags("Products");
 
-app.MapGet("/api/products/slug/{slug}", async (string slug, ProductService service) =>
+app.MapGet("/api/products/slug/{slug}", async (string slug, CachedProductService cachedService) =>
 {
-    var product = await service.GetProductBySlugAsync(slug);
+    var product = await cachedService.GetProductBySlugAsync(slug);
     return product == null ? Results.NotFound() : Results.Ok(product);
 }).WithName("GetProductBySlug").WithTags("Products");
 
@@ -231,12 +237,12 @@ app.MapPost("/api/products/{id}/submit", async (Guid id, ProductService service,
 // Product Review APIs
 // ============================================
 
-app.MapGet("/api/products/{id}/reviews", async (Guid id, ProductService service, int page = 1, int pageSize = 10, int? rating = null) =>
-    Results.Ok(await service.GetReviewsAsync(id, page, pageSize, rating)))
+app.MapGet("/api/products/{id}/reviews", async (Guid id, CachedProductService cachedService, int page = 1, int pageSize = 10, int? rating = null) =>
+    Results.Ok(await cachedService.GetReviewsAsync(id, page, pageSize, rating)))
 .WithName("GetProductReviews").WithTags("Reviews");
 
-app.MapGet("/api/products/{id}/reviews/summary", async (Guid id, ProductService service) =>
-    Results.Ok(await service.GetReviewSummaryAsync(id)))
+app.MapGet("/api/products/{id}/reviews/summary", async (Guid id, CachedProductService cachedService) =>
+    Results.Ok(await cachedService.GetReviewSummaryAsync(id)))
 .WithName("GetReviewSummary").WithTags("Reviews");
 
 app.MapPost("/api/products/{id}/reviews", async (Guid id, ProductService service, CreateReviewRequest request, HttpContext ctx) =>

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Order.Api.Consumers;
+using Order.Api.Services;
 using Order.Application.Clients;
 using Order.Application.DTOs;
 using Order.Application.Interfaces;
@@ -19,18 +20,28 @@ builder.Services.AddDbContext<OrderDbContext>(options =>
 // RabbitMQ
 builder.Services.AddRabbitMQ(builder.Configuration);
 
-// HTTP Clients
-builder.Services.AddHttpClient<IDiscountClient, DiscountClient>(client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:Discount"] ?? "http://localhost:5006");
-    client.Timeout = TimeSpan.FromSeconds(10);
-});
+// Feature flags for gRPC
+var useGrpcForInventory = builder.Configuration.GetValue<bool>("Features:UseGrpcForInventory", false);
+var useGrpcForDiscount = builder.Configuration.GetValue<bool>("Features:UseGrpcForDiscount", false);
 
-builder.Services.AddHttpClient<IInventoryClient, InventoryClient>(client =>
+// HTTP Clients (fallback or when gRPC disabled)
+if (!useGrpcForDiscount)
 {
-    client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:Inventory"] ?? "http://localhost:5005");
-    client.Timeout = TimeSpan.FromSeconds(10);
-});
+    builder.Services.AddHttpClient<IDiscountClient, DiscountClient>(client =>
+    {
+        client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:Discount"] ?? "http://localhost:5006");
+        client.Timeout = TimeSpan.FromSeconds(10);
+    });
+}
+
+if (!useGrpcForInventory)
+{
+    builder.Services.AddHttpClient<IInventoryClient, InventoryClient>(client =>
+    {
+        client.BaseAddress = new Uri(builder.Configuration["ServiceUrls:Inventory"] ?? "http://localhost:5005");
+        client.Timeout = TimeSpan.FromSeconds(10);
+    });
+}
 
 builder.Services.AddHttpClient<IPaymentClient, PaymentClient>(client =>
 {
@@ -47,6 +58,21 @@ builder.Services.AddScoped<IOrderRefundRepository, OrderRefundRepository>();
 
 // Services
 builder.Services.AddScoped<OrderService>();
+
+// gRPC Clients (raw clients)
+builder.Services.AddScoped<InventoryGrpcClient>();
+builder.Services.AddScoped<DiscountGrpcClient>();
+
+// gRPC Adapters (implements IInventoryClient/IDiscountClient using gRPC)
+if (useGrpcForInventory)
+{
+    builder.Services.AddScoped<IInventoryClient, InventoryGrpcClientAdapter>();
+}
+
+if (useGrpcForDiscount)
+{
+    builder.Services.AddScoped<IDiscountClient, DiscountGrpcClientAdapter>();
+}
 
 // Consumers
 builder.Services.AddHostedService<UserProfileUpdatedConsumer>();
@@ -336,4 +362,95 @@ app.MapPost("/api/orders/internal/sync-user-info", async (OrderService service, 
     return Results.Ok(new { message = "User info synced", user_id = request.UserId });
 }).WithName("SyncUserInfo").WithTags("Internal");
 
+// ============================================
+// gRPC Test APIs
+// ============================================
+
+app.MapGet("/api/orders/grpc-test/inventory/{productId}", async (Guid productId, InventoryGrpcClient grpcClient) =>
+{
+    try
+    {
+        var response = await grpcClient.GetStockAsync(productId.ToString());
+        return Results.Ok(new
+        {
+            method = "gRPC",
+            product_id = response.ProductId,
+            in_stock = response.InStock,
+            available = response.AvailableQuantity,
+            reserved = response.ReservedQuantity,
+            warehouses = response.Warehouses.Count
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"gRPC Error: {ex.Message}");
+    }
+}).WithName("TestInventoryGrpc").WithTags("gRPC Test");
+
+app.MapPost("/api/orders/grpc-test/discount/validate", async (TestDiscountRequest request, DiscountGrpcClient grpcClient) =>
+{
+    try
+    {
+        var items = request.Items.Select(i => (
+            ProductId: i.ProductId.ToString(),
+            CategoryId: i.CategoryId?.ToString(),
+            Quantity: i.Quantity,
+            UnitPrice: i.UnitPrice
+        )).ToList();
+
+        var response = await grpcClient.ValidateDiscountAsync(
+            request.Code,
+            request.UserId.ToString(),
+            request.OrderAmount,
+            items
+        );
+
+        return Results.Ok(new
+        {
+            method = "gRPC",
+            valid = response.Valid,
+            message = response.Message,
+            discount_amount = response.DiscountAmount?.Amount ?? 0,
+            discount_code = request.Code
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"gRPC Error: {ex.Message}");
+    }
+}).WithName("TestDiscountGrpc").WithTags("gRPC Test");
+
+app.MapGet("/api/orders/grpc-test/status", () =>
+{
+    return Results.Ok(new
+    {
+        message = "Order Service - gRPC Implementation Active",
+        grpc_enabled = new
+        {
+            inventory = useGrpcForInventory,
+            discount = useGrpcForDiscount
+        },
+        grpc_urls = new
+        {
+            inventory = builder.Configuration["GrpcServices:Inventory"],
+            discount = builder.Configuration["GrpcServices:Discount"]
+        }
+    });
+}).WithName("GrpcStatus").WithTags("gRPC Test");
+
 app.Run();
+
+// Test DTOs
+public record TestDiscountRequest(
+    string Code,
+    Guid UserId,
+    decimal OrderAmount,
+    List<TestOrderItem> Items
+);
+
+public record TestOrderItem(
+    Guid ProductId,
+    Guid? CategoryId,
+    int Quantity,
+    decimal UnitPrice
+);

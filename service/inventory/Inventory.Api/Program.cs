@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Inventory.Api.Consumers;
+using Inventory.Api.Services;
 using Inventory.Application.DTOs;
 using Inventory.Application.Interfaces;
 using Inventory.Application.Services;
@@ -7,12 +8,16 @@ using Inventory.Infrastructure.DB;
 using Inventory.Infrastructure.Repositories;
 using Shared.Messaging.Events;
 using Shared.Messaging.Extensions;
+using Shared.Caching.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Database
 builder.Services.AddDbContext<InventoryDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DBConnectParam")));
+
+// Redis Caching
+builder.Services.AddRedisCaching(builder.Configuration);
 
 // RabbitMQ
 builder.Services.AddRabbitMQ(builder.Configuration);
@@ -25,6 +30,9 @@ builder.Services.AddScoped<IStockReservationRepository, StockReservationReposito
 
 // Services
 builder.Services.AddScoped<InventoryService>();
+
+// gRPC
+builder.Services.AddGrpc();
 
 // Consumers
 builder.Services.AddHostedService<OrderConfirmedConsumer>();
@@ -83,6 +91,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Map gRPC Services (Port 5015)
+app.MapGrpcService<InventoryGrpcService>();
+app.MapGet("/", () => "Inventory Service - REST API (5005) & gRPC (5015)");
 
 // Helper to get UserId from JWT
 static Guid? GetUserId(HttpContext ctx)

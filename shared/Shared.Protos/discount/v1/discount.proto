@@ -1,0 +1,134 @@
+syntax = "proto3";
+
+package discount.v1;
+
+import "google/protobuf/timestamp.proto";
+import "common/types.proto";
+
+option csharp_namespace = "Shared.Protos.Discount.V1";
+
+// ============================================
+// Discount Service
+// ============================================
+service DiscountService {
+  // Validate discount code
+  rpc ValidateDiscount(ValidateDiscountRequest) returns (ValidateDiscountResponse);
+  
+  // Apply discount to order
+  rpc ApplyDiscount(ApplyDiscountRequest) returns (ApplyDiscountResponse);
+  
+  // Record discount usage (internal)
+  rpc RecordUsage(RecordUsageRequest) returns (RecordUsageResponse);
+  
+  // Rollback discount usage (when order cancelled)
+  rpc RollbackUsage(RollbackUsageRequest) returns (RollbackUsageResponse);
+  
+  // Get active discounts
+  rpc GetActiveDiscounts(GetActiveDiscountsRequest) returns (GetActiveDiscountsResponse);
+}
+
+// ============================================
+// Messages
+// ============================================
+
+// ValidateDiscount
+message ValidateDiscountRequest {
+  string code = 1;
+  string user_id = 2;
+  common.Money order_amount = 3;
+  repeated OrderItem items = 4;
+}
+
+message ValidateDiscountResponse {
+  bool valid = 1;
+  string message = 2;
+  DiscountInfo discount = 3;
+  common.Money discount_amount = 4;
+  repeated ValidationError errors = 5;
+}
+
+message OrderItem {
+  string product_id = 1;
+  string category_id = 2;
+  int32 quantity = 3;
+  common.Money unit_price = 4;
+}
+
+message DiscountInfo {
+  string id = 1;
+  string code = 2;
+  string name = 3;
+  string type = 4;  // PERCENTAGE, FIXED_AMOUNT, FREE_SHIPPING, BUY_X_GET_Y
+  double value = 5;
+  common.Money max_discount_amount = 6;
+  common.Money min_order_amount = 7;
+  int32 min_quantity = 8;
+  google.protobuf.Timestamp start_date = 9;
+  google.protobuf.Timestamp end_date = 10;
+}
+
+message ValidationError {
+  string code = 1;
+  string message = 2;
+}
+
+// ApplyDiscount
+message ApplyDiscountRequest {
+  string code = 1;
+  string user_id = 2;
+  string order_id = 3;
+  string order_number = 4;
+  common.Money order_amount = 5;
+  repeated OrderItem items = 6;
+}
+
+message ApplyDiscountResponse {
+  bool success = 1;
+  string message = 2;
+  string discount_id = 3;
+  common.Money discount_amount = 4;
+  string application_id = 5;  // Unique ID for this application
+}
+
+// RecordUsage
+message RecordUsageRequest {
+  string discount_id = 1;
+  string user_id = 2;
+  string order_id = 3;
+  string order_number = 4;
+  common.Money order_amount = 5;
+  common.Money discount_amount = 6;
+}
+
+message RecordUsageResponse {
+  bool success = 1;
+  string message = 2;
+  string usage_id = 3;
+}
+
+// RollbackUsage
+message RollbackUsageRequest {
+  string order_id = 1;
+  string discount_id = 2;
+  string reason = 3;
+}
+
+message RollbackUsageResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// GetActiveDiscounts
+message GetActiveDiscountsRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message GetActiveDiscountsResponse {
+  repeated DiscountInfo discounts = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+

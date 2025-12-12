@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package common;
+
+option csharp_namespace = "Shared.Protos.Common";
+
+// Common UUID type
+message Uuid {
+  string value = 1;
+}
+
+// Money type (amount in smallest unit)
+message Money {
+  int64 amount = 1;      // Amount in smallest unit (cents, đồng)
+  string currency = 2;   // ISO 4217 currency code (VND, USD)
+}
+
+// Generic success response
+message SuccessResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Error details
+message ErrorDetails {
+  string code = 1;
+  string message = 2;
+  map<string, string> metadata = 3;
+}
+

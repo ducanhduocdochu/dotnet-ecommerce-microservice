@@ -5,12 +5,16 @@ using User.Application.Services;
 using User.Infrastructure.DB;
 using User.Infrastructure.Repositories;
 using Shared.Messaging.Extensions;
+using Shared.Caching.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Database
 builder.Services.AddDbContext<UserDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DBConnectParam")));
+
+// Redis Caching
+builder.Services.AddRedisCaching(builder.Configuration);
 
 // RabbitMQ for event publishing
 builder.Services.AddRabbitMQ(builder.Configuration);
