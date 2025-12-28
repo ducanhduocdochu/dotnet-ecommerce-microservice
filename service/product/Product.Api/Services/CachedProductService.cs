@@ -34,15 +34,6 @@ public class CachedProductService
         );
     }
 
-    public async Task<List<CategoryResponse>> GetCategoriesAsync()
-    {
-        return await _cache.GetOrSetAsync(
-            CacheKeys.Category.All(),
-            async () => await _productService.GetCategoriesAsync(),
-            CacheTTL.Category
-        );
-    }
-
     public async Task<CategoryResponse?> GetCategoryByIdAsync(Guid id)
     {
         return await _cache.GetOrSetAsync(
@@ -52,14 +43,14 @@ public class CachedProductService
         );
     }
 
-    public async Task<CategoryTreeResponse> CreateCategoryAsync(CreateCategoryRequest request)
+    public async Task<CategoryResponse> CreateCategoryAsync(CreateCategoryRequest request)
     {
         var result = await _productService.CreateCategoryAsync(request);
         await InvalidateCategoryCache();
         return result;
     }
 
-    public async Task<CategoryTreeResponse?> UpdateCategoryAsync(Guid id, UpdateCategoryRequest request)
+    public async Task<CategoryResponse?> UpdateCategoryAsync(Guid id, UpdateCategoryRequest request)
     {
         var result = await _productService.UpdateCategoryAsync(id, request);
         if (result != null)
@@ -80,11 +71,18 @@ public class CachedProductService
     }
 
     // ============ Brand Methods (Cache 24h) ============
-    public async Task<List<BrandResponse>> GetBrandsAsync()
+    public async Task<PagedResponse<BrandResponse>> GetBrandsAsync(int page, int pageSize, string? search)
     {
+        // Don't cache search results
+        if (!string.IsNullOrEmpty(search))
+        {
+            return await _productService.GetBrandsAsync(page, pageSize, search);
+        }
+
+        var cacheKey = $"brands:list:p{page}:s{pageSize}";
         return await _cache.GetOrSetAsync(
-            CacheKeys.Brand.All(),
-            async () => await _productService.GetBrandsAsync(),
+            cacheKey,
+            async () => await _productService.GetBrandsAsync(page, pageSize, null),
             CacheTTL.Brand
         );
     }

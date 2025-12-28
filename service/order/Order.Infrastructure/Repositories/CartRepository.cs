@@ -19,6 +19,9 @@ public class CartRepository : ICartRepository
 
     public async Task<CartItem?> GetByUserAndProductAsync(Guid userId, Guid productId, Guid? variantId = null)
     {
+        Console.WriteLine($"userId: {userId}");
+        Console.WriteLine($"productId: {productId}");
+        Console.WriteLine($"variantId: {variantId}");
         if (variantId.HasValue)
             return await _context.CartItems.FirstOrDefaultAsync(c => c.UserId == userId && c.ProductId == productId && c.VariantId == variantId);
         return await _context.CartItems.FirstOrDefaultAsync(c => c.UserId == userId && c.ProductId == productId && c.VariantId == null);

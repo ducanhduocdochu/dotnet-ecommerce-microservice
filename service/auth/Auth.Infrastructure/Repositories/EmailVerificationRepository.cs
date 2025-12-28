@@ -15,7 +15,7 @@ public class EmailVerificationRepository : IEmailVerificationRepository
     }
 
     public async Task<EmailVerification?> GetByTokenAsync(string token)
-    {
+    {   
         return await _context.EmailVerifications
             .FirstOrDefaultAsync(ev => ev.Token == token && !ev.IsUsed && ev.ExpiresAt > DateTime.UtcNow);
     }

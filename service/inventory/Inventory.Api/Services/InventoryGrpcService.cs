@@ -1,9 +1,9 @@
 using Grpc.Core;
 using Shared.Protos.Inventory.V1;
 using Inventory.Application.Services;
-using Inventory.Application.DTOs;
 using Shared.Caching.Interfaces;
 using Shared.Caching.Constants;
+using InventoryDto = Inventory.Application.DTOs;
 
 namespace Inventory.Api.Services;
 
@@ -44,10 +44,10 @@ public class InventoryGrpcService : Shared.Protos.Inventory.V1.InventoryService.
             Guid? variantId = string.IsNullOrEmpty(request.VariantId) ? null : Guid.Parse(request.VariantId);
 
             // Create DTO request
-            var checkRequest = new Application.DTOs.CheckStockRequest(
-                new List<CheckStockItem>
+            var checkRequest = new InventoryDto.CheckStockRequest(
+                new List<InventoryDto.CheckStockItem>
                 {
-                    new CheckStockItem(productId, variantId, request.Quantity)
+                    new InventoryDto.CheckStockItem(productId, variantId, request.Quantity)
                 }
             );
 
@@ -84,13 +84,13 @@ public class InventoryGrpcService : Shared.Protos.Inventory.V1.InventoryService.
 
         try
         {
-            var items = request.Items.Select(i => new CheckStockItem(
+            var items = request.Items.Select(i => new InventoryDto.CheckStockItem(
                 Guid.Parse(i.ProductId),
                 string.IsNullOrEmpty(i.VariantId) ? null : Guid.Parse(i.VariantId),
                 i.Quantity
             )).ToList();
 
-            var checkRequest = new Application.DTOs.CheckStockRequest(items);
+            var checkRequest = new InventoryDto.CheckStockRequest(items);
             var result = await _inventoryService.CheckStockAsync(checkRequest);
 
             var response = new CheckStockBatchResponse
@@ -135,14 +135,14 @@ public class InventoryGrpcService : Shared.Protos.Inventory.V1.InventoryService.
         {
             var orderId = Guid.Parse(request.OrderId);
             
-            var items = request.Items.Select(i => new ReserveStockItem(
+            var items = request.Items.Select(i => new InventoryDto.ReserveStockItem(
                 Guid.Parse(i.ProductId),
                 string.IsNullOrEmpty(i.VariantId) ? null : Guid.Parse(i.VariantId),
                 Guid.NewGuid(), // OrderItemId - generate new if not provided
                 i.Quantity
             )).ToList();
 
-            var reserveRequest = new Application.DTOs.ReserveStockRequest(
+            var reserveRequest = new InventoryDto.ReserveStockRequest(
                 orderId,
                 request.OrderNumber,
                 items,
@@ -222,7 +222,7 @@ public class InventoryGrpcService : Shared.Protos.Inventory.V1.InventoryService.
         {
             var orderId = Guid.Parse(request.OrderId);
             
-            var releaseRequest = new Application.DTOs.ReleaseStockRequest(
+            var releaseRequest = new InventoryDto.ReleaseStockRequest(
                 orderId,
                 request.Reason
             );

@@ -97,7 +97,7 @@ public class JwtValidationMiddleware
         
         try
         {
-            var secret = _configuration["Jwt:Secret"] ?? "ducanhdeptrai123";
+            var secret = _configuration["Jwt:Secret"] ?? "ducanhdeptrai123_ducanhdeptrai123";
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.ASCII.GetBytes(secret);
 

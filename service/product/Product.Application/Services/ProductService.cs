@@ -185,9 +185,14 @@ public class ProductService
 
     public async Task<ProductDetailResponse> CreateProductAsync(Guid sellerId, CreateProductRequest request)
     {
+        Console.WriteLine($"Request: {request.CategoryId}");
         var product = new ProductEntity(sellerId, request.Name, request.Slug, request.BasePrice, request.SellerName, request.SellerAvatar, request.CategoryId, request.BrandId, request.Description, request.ShortDescription, request.Sku);
+        Console.WriteLine($"Request: {request.BrandId}");
         await _productRepository.AddAsync(product);
         await _productRepository.SaveChangesAsync();
+
+        Console.WriteLine($"Product: {product.CategoryId}");
+        Console.WriteLine($"Product: {product.BrandId}");
 
         // Add images
         if (request.Images != null)
@@ -199,6 +204,8 @@ public class ProductService
             }
             await _imageRepository.SaveChangesAsync();
         }
+
+        Console.WriteLine($"Images: {product.Images.Count}");
 
         // Add variants
         if (request.Variants != null)

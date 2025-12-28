@@ -64,7 +64,7 @@ Client → Gateway (validate JWT) → Services (validate internal key)
 ```json
 {
   "Jwt": {
-    "Secret": "ducanhdeptrai123"  // Same as Auth Service
+    "Secret": "ducanhdeptrai123_ducanhdeptrai123"  // Same as Auth Service
   },
   "Internal": {
     "Secret": "internal-gateway-secret-key-2024"  // Shared với services

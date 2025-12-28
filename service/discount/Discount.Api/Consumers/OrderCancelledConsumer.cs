@@ -18,13 +18,18 @@ public class OrderCancelledConsumer : EventConsumer<OrderCancelledEvent>
         IRabbitMQConnection connection,
         IServiceProvider serviceProvider,
         ILogger<OrderCancelledConsumer> logger)
-        : base(connection, EventConstants.OrderExchange, EventConstants.DiscountOrderCancelledQueue, EventConstants.OrderCancelled, logger)
+        : base(
+            connection,
+            logger,
+            EventConstants.OrderExchange,
+            EventConstants.DiscountOrderCancelledQueue,
+            EventConstants.OrderCancelled)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
-    protected override async Task ProcessMessageAsync(OrderCancelledEvent message)
+    protected override async Task HandleAsync(OrderCancelledEvent message, CancellationToken cancellationToken)
     {
         _logger.LogInformation("🎫 [Discount] Received OrderCancelledEvent for order: {OrderNumber}", message.OrderNumber);
 

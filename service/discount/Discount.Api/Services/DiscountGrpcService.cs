@@ -2,7 +2,7 @@ using Grpc.Core;
 using Shared.Protos.Discount.V1;
 using Shared.Protos.Common;
 using Discount.Application.Services;
-using Discount.Application.DTOs;
+using DiscountDto = Discount.Application.DTOs;
 
 namespace Discount.Api.Services;
 
@@ -38,14 +38,14 @@ public class DiscountGrpcService : Shared.Protos.Discount.V1.DiscountService.Dis
             }
 
             // Map request items
-            var items = request.Items.Select(i => new ValidateDiscountItem(
+            var items = request.Items.Select(i => new DiscountDto.ValidateDiscountItem(
                 Guid.Parse(i.ProductId),
                 string.IsNullOrEmpty(i.CategoryId) ? null : Guid.Parse(i.CategoryId),
                 i.Quantity,
                 (decimal)i.UnitPrice.Amount / 100m // Convert from cents to decimal
             )).ToList();
 
-            var validateRequest = new Application.DTOs.ValidateDiscountRequest(
+            var validateRequest = new DiscountDto.ValidateDiscountRequest(
                 request.Code,
                 (decimal)request.OrderAmount.Amount / 100m, // Convert from cents
                 items
@@ -98,14 +98,14 @@ public class DiscountGrpcService : Shared.Protos.Discount.V1.DiscountService.Dis
             var userId = Guid.Parse(request.UserId);
             var orderId = Guid.Parse(request.OrderId);
 
-            var items = request.Items.Select(i => new ValidateDiscountItem(
+            var items = request.Items.Select(i => new DiscountDto.ValidateDiscountItem(
                 Guid.Parse(i.ProductId),
                 string.IsNullOrEmpty(i.CategoryId) ? null : Guid.Parse(i.CategoryId),
                 i.Quantity,
                 (decimal)i.UnitPrice.Amount / 100m
             )).ToList();
 
-            var applyRequest = new Application.DTOs.ApplyDiscountRequest(
+            var applyRequest = new DiscountDto.ApplyDiscountRequest(
                 request.Code,
                 orderId,
                 request.OrderNumber,
@@ -269,7 +269,7 @@ public class DiscountGrpcService : Shared.Protos.Discount.V1.DiscountService.Dis
     // ============================================
     // Helper Methods
     // ============================================
-    private Shared.Protos.Discount.V1.DiscountInfo MapToDiscountInfo(DiscountResponse discount)
+    private Shared.Protos.Discount.V1.DiscountInfo MapToDiscountInfo(DiscountDto.DiscountResponse discount)
     {
         return new Shared.Protos.Discount.V1.DiscountInfo
         {

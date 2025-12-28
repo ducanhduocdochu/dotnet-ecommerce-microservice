@@ -42,28 +42,29 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
-// Check database connection
+// ============================================
+// Check all service connections on startup
+// ============================================
 using (var scope = app.Services.CreateScope())
 {
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    var dbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
     
+    // 1. Check PostgreSQL connection
+    var dbContext = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
     try
     {
         if (await dbContext.Database.CanConnectAsync())
         {
-            logger.LogInformation("✅ Database connection successful!");
-            logger.LogInformation("📦 Connection string: {ConnectionString}", 
-                builder.Configuration.GetConnectionString("DBConnectParam")?.Split(";")[0] + "...");
+            logger.LogInformation("✅ PostgreSQL connection successful!");
         }
         else
         {
-            logger.LogError("❌ Database connection failed!");
+            logger.LogError("❌ PostgreSQL connection failed!");
         }
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "❌ Database connection error: {Message}", ex.Message);
+        logger.LogError(ex, "❌ PostgreSQL connection error: {Message}", ex.Message);
     }
 }
 

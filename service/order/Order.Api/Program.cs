@@ -83,7 +83,7 @@ builder.Services.AddHostedService<PaymentFailedConsumer>();
 builder.Services.AddAuthentication("Bearer")
     .AddJwtBearer("Bearer", options =>
     {
-        var secret = builder.Configuration["Jwt:Secret"] ?? "ducanhdeptrai123";
+        var secret = builder.Configuration["Jwt:Secret"] ?? "ducanhdeptrai123_ducanhdeptrai123";
         options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
         {
             ValidateIssuer = false,
@@ -105,6 +105,53 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+// ============================================
+// Check all service connections on startup
+// ============================================
+using (var scope = app.Services.CreateScope())
+{
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    
+    // 1. Check PostgreSQL connection
+    var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+    try
+    {
+        if (await dbContext.Database.CanConnectAsync())
+        {
+            logger.LogInformation("✅ PostgreSQL connection successful!");
+        }
+        else
+        {
+            logger.LogError("❌ PostgreSQL connection failed!");
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "❌ PostgreSQL connection error: {Message}", ex.Message);
+    }
+
+    // 2. Check RabbitMQ connection
+    try
+    {
+        var rabbitMQ = scope.ServiceProvider.GetService<Shared.Messaging.RabbitMQ.IRabbitMQConnection>();
+        if (rabbitMQ != null)
+        {
+            if (rabbitMQ.TryConnect())
+            {
+                logger.LogInformation("✅ RabbitMQ connection successful!");
+            }
+            else
+            {
+                logger.LogWarning("⚠️ RabbitMQ not connected - messaging will be unavailable");
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "⚠️ RabbitMQ connection error: {Message}", ex.Message);
+    }
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -115,25 +162,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 // Helper to get UserId from JWT
-static Guid? GetUserId(HttpContext ctx)
-{
-    var userIdClaim = ctx.User.FindFirst("sub") ?? ctx.User.FindFirst("nameid") ?? ctx.User.FindFirst("user_id");
-    return userIdClaim != null && Guid.TryParse(userIdClaim.Value, out var userId) ? userId : null;
-}
-
-// Database connection check
-var logger = app.Services.GetRequiredService<ILogger<Program>>();
-try
-{
-    using var scope = app.Services.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
-    await dbContext.Database.EnsureCreatedAsync();
-    logger.LogInformation("✅ Order Database connection successful!");
-}
-catch (Exception ex)
-{
-    logger.LogError(ex, "❌ Order Database connection failed!");
-}
+// Helper to get user ID from JWT
+Guid? GetUserId(HttpContext ctx) =>
+    Guid.TryParse(ctx.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var id) ? id : null;
 
 // ============================================
 // Cart APIs
@@ -183,7 +214,7 @@ app.MapDelete("/api/cart", async (OrderService service, HttpContext ctx) =>
 // Checkout API (New - with HTTP clients)
 // ============================================
 
-app.MapPost("/api/orders/checkout", async (OrderService service, CheckoutRequest request, HttpContext ctx) =>
+app.MapPost("/api/orders/checkout", async (OrderService service, CheckoutRequest request, HttpContext ctx, ILogger<Program> logger) =>
 {
     var userId = GetUserId(ctx);
     if (userId == null) return Results.Unauthorized();

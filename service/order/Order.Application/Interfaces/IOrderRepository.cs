@@ -15,6 +15,7 @@ public interface IOrderRepository
     Task<OrderEntity?> GetByOrderNumberAsync(string orderNumber);
     Task AddAsync(OrderEntity order);
     Task UpdateAsync(OrderEntity order);
+    Task DeleteAsync(OrderEntity order);
     Task SaveChangesAsync();
 }
 

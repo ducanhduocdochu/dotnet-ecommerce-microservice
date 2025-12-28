@@ -1,11 +1,30 @@
 {
   "version": 3,
   "targets": {
-    "net8.0": {}
+    "net8.0": {
+      "Inventory.Domain/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v8.0",
+        "compile": {
+          "bin/placeholder/Inventory.Domain.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/Inventory.Domain.dll": {}
+        }
+      }
+    }
   },
-  "libraries": {},
+  "libraries": {
+    "Inventory.Domain/1.0.0": {
+      "type": "project",
+      "path": "../Inventory.Domain/Inventory.Domain.csproj",
+      "msbuildProject": "../Inventory.Domain/Inventory.Domain.csproj"
+    }
+  },
   "projectFileDependencyGroups": {
-    "net8.0": []
+    "net8.0": [
+      "Inventory.Domain >= 1.0.0"
+    ]
   },
   "packageFolders": {
     "C:\\Users\\tduca\\.nuget\\packages\\": {}
@@ -13,11 +32,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\Microservice Ecommerce Dotnet8\\service\\inventory\\Inventory.Application\\Inventory.Application.csproj",
+      "projectUniqueName": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Application\\Inventory.Application.csproj",
       "projectName": "Inventory.Application",
-      "projectPath": "D:\\Microservice Ecommerce Dotnet8\\service\\inventory\\Inventory.Application\\Inventory.Application.csproj",
+      "projectPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Application\\Inventory.Application.csproj",
       "packagesPath": "C:\\Users\\tduca\\.nuget\\packages\\",
-      "outputPath": "D:\\Microservice Ecommerce Dotnet8\\service\\inventory\\Inventory.Application\\obj\\",
+      "outputPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Application\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\tduca\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -31,7 +50,11 @@
       "frameworks": {
         "net8.0": {
           "targetAlias": "net8.0",
-          "projectReferences": {}
+          "projectReferences": {
+            "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Domain\\Inventory.Domain.csproj": {
+              "projectPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Domain\\Inventory.Domain.csproj"
+            }
+          }
         }
       },
       "warningProperties": {

@@ -1,47 +1,49 @@
-# Build artifacts
+# Ignore build outputs
 **/bin/
 **/obj/
 **/out/
+**/publish/
 
-# IDE folders
+# Ignore IDE files
 **/.vs/
 **/.vscode/
 **/.idea/
-**/*.user
-**/*.suo
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.swp
+*.*~
+project.lock.json
 
-# Documentation
-**/*.md
-!README.md
+# Ignore OS files
+.DS_Store
+Thumbs.db
 
-# Git
+# Ignore git files
 .git/
 .gitignore
 .gitattributes
 
-# Docker
-**/Dockerfile
-**/docker-compose*.yml
-.dockerignore
+# Ignore documentation and tests
+**/*.md
+**/tests/
+**/*.http
 
-# Tests
-**/TestResults/
-**/*.trx
-
-# Logs
+# Ignore logs
 **/logs/
 **/*.log
 
-# OS
-.DS_Store
-Thumbs.db
-
-# NuGet
-**/*.nupkg
-**/.nuget/
-
-# Misc
+# Ignore dependencies
 **/node_modules/
-**/.env
-**/.env.*
+**/packages/
 
+# Ignore Docker files in subdirectories
+**/Dockerfile
+**/docker-compose*.yml
+**/.dockerignore
+
+# Keep necessary files
+!**/appsettings.json
+!**/appsettings.Development.json
+!**/appsettings.Production.json

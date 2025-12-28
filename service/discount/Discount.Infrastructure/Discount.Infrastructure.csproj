@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Discount.Domain\Discount.Domain.csproj" />
+    <ProjectReference Include="..\Discount.Application\Discount.Application.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,180 +1,319 @@
-# Docker Build & Run Guide
+# Docker Deployment Guide
 
-## 📋 Overview
+## Prerequisites
 
-All services use **Monorepo + Copy in Docker** approach:
-- Services that use RabbitMQ → copy `shared/Shared.Messaging`
-- Build context = project root
-- Multi-stage build (small runtime images)
+- Docker Desktop installed (Windows/Mac) or Docker Engine + Docker Compose (Linux)
+- At least 8GB RAM available for Docker
+- At least 20GB free disk space
 
----
+## Quick Start
 
-## 🚀 Build Commands
-
-Run from **project root** (`D:\Microservice Ecommerce Dotnet8`):
+### 1. Build and Run All Services
 
 ```bash
-# Gateway (no shared dependency)
-docker build -f service/gateway/Gateway.Api/Dockerfile -t ecommerce-gateway .
+# Build all images
+docker-compose build
 
-# Auth (no shared dependency)
-docker build -f service/auth/Auth.Api/Dockerfile -t ecommerce-auth .
+# Start all services
+docker-compose up -d
 
-# User (with shared)
-docker build -f service/user/User.Api/Dockerfile -t ecommerce-user .
+# View logs
+docker-compose logs -f
 
-# Product (with shared)
-docker build -f service/product/Product.Api/Dockerfile -t ecommerce-product .
-
-# Order (with shared)
-docker build -f service/order/Order.Api/Dockerfile -t ecommerce-order .
-
-# Inventory (with shared)
-docker build -f service/inventory/Inventory.Api/Dockerfile -t ecommerce-inventory .
-
-# Discount (with shared)
-docker build -f service/discount/Discount.Api/Dockerfile -t ecommerce-discount .
-
-# Payment (with shared)
-docker build -f service/payment/Payment.Api/Dockerfile -t ecommerce-payment .
+# View logs for specific service
+docker-compose logs -f auth-service
 ```
 
----
-
-## 🏃 Run Commands
-
-### Prerequisites
-
-```bash
-# Start PostgreSQL
-docker run -d --name ecommerce-postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -p 5432:5432 \
-  postgres:16-alpine
-
-# Create databases
-docker exec -it ecommerce-postgres psql -U postgres -c "CREATE DATABASE auth_db;"
-docker exec -it ecommerce-postgres psql -U postgres -c "CREATE DATABASE user_db;"
-docker exec -it ecommerce-postgres psql -U postgres -c "CREATE DATABASE product_db;"
-docker exec -it ecommerce-postgres psql -U postgres -c "CREATE DATABASE order_db;"
-docker exec -it ecommerce-postgres psql -U postgres -c "CREATE DATABASE inventory_db;"
-docker exec -it ecommerce-postgres psql -U postgres -c "CREATE DATABASE discount_db;"
-docker exec -it ecommerce-postgres psql -U postgres -c "CREATE DATABASE payment_db;"
-
-# Start RabbitMQ
-docker run -d --name ecommerce-rabbitmq \
-  -p 5672:5672 -p 15672:15672 \
-  rabbitmq:3-management-alpine
-```
-
-### Run Services
-
-```bash
-# Gateway
-docker run -d --name gateway -p 5010:8080 ecommerce-gateway
-
-# Auth
-docker run -d --name auth -p 5000:8080 \
-  -e ConnectionStrings__DBConnectParam="Host=host.docker.internal;Database=auth_db;Username=postgres;Password=postgres" \
-  ecommerce-auth
-
-# User
-docker run -d --name user -p 5001:8080 \
-  -e ConnectionStrings__DBConnectParam="Host=host.docker.internal;Database=user_db;Username=postgres;Password=postgres" \
-  -e RabbitMQ__HostName=host.docker.internal \
-  ecommerce-user
-
-# Product
-docker run -d --name product -p 5002:8080 \
-  -e ConnectionStrings__DBConnectParam="Host=host.docker.internal;Database=product_db;Username=postgres;Password=postgres" \
-  -e RabbitMQ__HostName=host.docker.internal \
-  ecommerce-product
-
-# Order
-docker run -d --name order -p 5003:8080 \
-  -e ConnectionStrings__DBConnectParam="Host=host.docker.internal;Database=order_db;Username=postgres;Password=postgres" \
-  -e RabbitMQ__HostName=host.docker.internal \
-  -e ServiceUrls__Discount=http://host.docker.internal:5006 \
-  -e ServiceUrls__Inventory=http://host.docker.internal:5005 \
-  -e ServiceUrls__Payment=http://host.docker.internal:5007 \
-  ecommerce-order
-
-# Inventory
-docker run -d --name inventory -p 5005:8080 \
-  -e ConnectionStrings__DBConnectParam="Host=host.docker.internal;Database=inventory_db;Username=postgres;Password=postgres" \
-  -e RabbitMQ__HostName=host.docker.internal \
-  ecommerce-inventory
-
-# Discount
-docker run -d --name discount -p 5006:8080 \
-  -e ConnectionStrings__DefaultConnection="Host=host.docker.internal;Database=discount_db;Username=postgres;Password=postgres" \
-  -e RabbitMQ__HostName=host.docker.internal \
-  ecommerce-discount
-
-# Payment
-docker run -d --name payment -p 5007:8080 \
-  -e ConnectionStrings__DefaultConnection="Host=host.docker.internal;Database=payment_db;Username=postgres;Password=postgres" \
-  -e RabbitMQ__HostName=host.docker.internal \
-  ecommerce-payment
-```
-
----
-
-## 🔗 Service URLs
-
-| Service | Port | URL |
-|---------|------|-----|
-| Gateway | 5010 | http://localhost:5010 |
-| Auth | 5000 | http://localhost:5000 |
-| User | 5001 | http://localhost:5001 |
-| Product | 5002 | http://localhost:5002 |
-| Order | 5003 | http://localhost:5003 |
-| Inventory | 5005 | http://localhost:5005 |
-| Discount | 5006 | http://localhost:5006 |
-| Payment | 5007 | http://localhost:5007 |
-| RabbitMQ UI | 15672 | http://localhost:15672 (guest/guest) |
-
----
-
-## 🧹 Cleanup
+### 2. Stop All Services
 
 ```bash
 # Stop all services
-docker stop gateway auth user product order inventory discount payment
-docker stop ecommerce-postgres ecommerce-rabbitmq
+docker-compose down
 
-# Remove containers
-docker rm gateway auth user product order inventory discount payment
-docker rm ecommerce-postgres ecommerce-rabbitmq
-
-# Remove images (optional)
-docker rmi ecommerce-gateway ecommerce-auth ecommerce-user ecommerce-product \
-  ecommerce-order ecommerce-inventory ecommerce-discount ecommerce-payment
+# Stop and remove volumes (WARNING: This will delete all data)
+docker-compose down -v
 ```
 
----
+## Service Ports
 
-## 📝 Notes
+| Service      | Port  | Description                    |
+|-------------|-------|--------------------------------|
+| Gateway     | 5010  | API Gateway (Entry point)      |
+| Auth        | 5001  | Authentication Service         |
+| User        | 5002  | User Management Service        |
+| Order       | 5003  | Order Management Service       |
+| Product     | 5004  | Product Catalog Service        |
+| Payment     | 5005  | Payment Processing Service     |
+| Inventory   | 5006  | Inventory Management (HTTP)    |
+| Inventory   | 5106  | Inventory Management (gRPC)    |
+| Discount    | 5007  | Discount & Promotion (HTTP)    |
+| Discount    | 5107  | Discount & Promotion (gRPC)    |
+| Notification| 5008  | Notification Service           |
+| PostgreSQL  | 5432  | Database                       |
+| Redis       | 6379  | Cache                          |
+| RabbitMQ    | 5672  | Message Broker (AMQP)          |
+| RabbitMQ UI | 15672 | Management Console             |
 
-- **`host.docker.internal`**: Allows containers to reach host machine (PostgreSQL, RabbitMQ)
-- For production, use `docker-compose` or Kubernetes with proper networking
-- Images are ~200MB each (multi-stage build with aspnet:8.0 runtime)
+## Infrastructure Services
 
----
+### PostgreSQL
+- **Username**: `postgres`
+- **Password**: `postgres`
+- **Databases**: Automatically created via `scripts/init-db.sql`
+  - `auth_db`
+  - `user_db`
+  - `product_db`
+  - `order_db`
+  - `payment_db`
+  - `inventory_db`
+  - `discount_db`
+  - `notification_db`
 
-## ✅ Verify Build
+### Redis
+- **Port**: `6379`
+- **Persistence**: Enabled (AOF)
 
-After building, check image sizes:
+### RabbitMQ
+- **Username**: `admin`
+- **Password**: `admin123`
+- **Management UI**: http://localhost:15672
+
+## Database Migrations
+
+After starting services for the first time, you need to run EF Core migrations:
 
 ```bash
-docker images | grep ecommerce
+# Auth Service
+docker exec -it ecommerce-auth dotnet ef database update
+
+# User Service
+docker exec -it ecommerce-user dotnet ef database update
+
+# Product Service
+docker exec -it ecommerce-product dotnet ef database update
+
+# Order Service
+docker exec -it ecommerce-order dotnet ef database update
+
+# Payment Service
+docker exec -it ecommerce-payment dotnet ef database update
+
+# Inventory Service
+docker exec -it ecommerce-inventory dotnet ef database update
+
+# Discount Service
+docker exec -it ecommerce-discount dotnet ef database update
 ```
 
-Expected output:
-```
-ecommerce-gateway     latest   abc123   2 minutes ago   220MB
-ecommerce-auth        latest   def456   3 minutes ago   230MB
-ecommerce-user        latest   ghi789   4 minutes ago   235MB
-...
+**Alternative**: Run migrations from host machine:
+
+```bash
+# Example for Auth Service
+cd service/auth/Auth.Api
+dotnet ef database update
+
+# Repeat for other services
 ```
 
+## Health Checks
+
+### Check Service Health
+
+```bash
+# Gateway
+curl http://localhost:5010/health
+
+# Auth Service
+curl http://localhost:5001/health
+
+# User Service
+curl http://localhost:5002/health
+
+# And so on...
+```
+
+### Check Infrastructure Health
+
+```bash
+# PostgreSQL
+docker exec -it ecommerce-postgres pg_isready -U postgres
+
+# Redis
+docker exec -it ecommerce-redis redis-cli ping
+
+# RabbitMQ
+docker exec -it ecommerce-rabbitmq rabbitmq-diagnostics ping
+```
+
+## Useful Commands
+
+### View Container Status
+```bash
+docker-compose ps
+```
+
+### View Container Resource Usage
+```bash
+docker stats
+```
+
+### Rebuild Specific Service
+```bash
+docker-compose build auth-service
+docker-compose up -d auth-service
+```
+
+### Execute Commands in Container
+```bash
+# Open shell in container
+docker exec -it ecommerce-auth /bin/sh
+
+# Run specific command
+docker exec -it ecommerce-auth dotnet --version
+```
+
+### View Logs with Timestamps
+```bash
+docker-compose logs -f --timestamps auth-service
+```
+
+### Clean Up Everything
+```bash
+# Stop and remove containers, networks, and volumes
+docker-compose down -v
+
+# Remove all unused images, containers, networks
+docker system prune -a --volumes
+```
+
+## Development Workflow
+
+### 1. Start Infrastructure Only
+```bash
+docker-compose up -d postgres redis rabbitmq
+```
+
+Then run services locally for faster development:
+```bash
+cd service/auth/Auth.Api
+dotnet run
+```
+
+### 2. Hot Reload (Development)
+For hot reload during development, modify the Dockerfile to use `dotnet watch`:
+
+```dockerfile
+# In runtime stage
+ENTRYPOINT ["dotnet", "watch", "run", "--no-launch-profile"]
+```
+
+### 3. Environment Variables
+You can override environment variables using `.env` file:
+
+```bash
+# Create .env file in project root
+POSTGRES_PASSWORD=your_secure_password
+JWT_SECRET=your_jwt_secret_key
+RABBITMQ_PASSWORD=your_rabbitmq_password
+```
+
+## Troubleshooting
+
+### Services Can't Connect to Database
+```bash
+# Check if PostgreSQL is ready
+docker-compose logs postgres
+
+# Restart database
+docker-compose restart postgres
+
+# Check database exists
+docker exec -it ecommerce-postgres psql -U postgres -l
+```
+
+### Port Already in Use
+```bash
+# Find process using port (Windows)
+netstat -ano | findstr :5010
+
+# Find process using port (Linux/Mac)
+lsof -i :5010
+
+# Kill process or change port in docker-compose.yml
+```
+
+### Out of Memory
+```bash
+# Increase Docker memory limit in Docker Desktop settings
+# Recommended: At least 8GB RAM
+
+# Or reduce number of running services
+docker-compose up -d postgres redis rabbitmq gateway auth-service
+```
+
+### Rebuild from Scratch
+```bash
+# Remove everything
+docker-compose down -v
+docker system prune -a --volumes
+
+# Rebuild
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+## Production Considerations
+
+1. **Security**:
+   - Change default passwords
+   - Use secrets management (Docker Secrets, HashiCorp Vault)
+   - Enable HTTPS/TLS
+   - Use environment-specific configurations
+
+2. **Performance**:
+   - Use production-optimized images
+   - Enable connection pooling
+   - Configure resource limits
+   - Use Redis clustering for cache
+   - Use PostgreSQL replication
+
+3. **Monitoring**:
+   - Add health check endpoints
+   - Integrate with monitoring tools (Prometheus, Grafana)
+   - Set up logging aggregation (ELK Stack, Seq)
+   - Use distributed tracing (Jaeger, Zipkin)
+
+4. **Scaling**:
+   - Use Docker Swarm or Kubernetes
+   - Implement load balancing
+   - Configure auto-scaling
+   - Use separate database instances per service
+
+## API Gateway Access
+
+All services are accessible through the Gateway at `http://localhost:5010`:
+
+```bash
+# Example API calls
+# Register
+curl -X POST http://localhost:5010/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"Password123!"}'
+
+# Login
+curl -X POST http://localhost:5010/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"Password123!"}'
+
+# Get products (with JWT token)
+curl -X GET http://localhost:5010/api/products \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+## Support
+
+For issues or questions:
+1. Check logs: `docker-compose logs -f [service-name]`
+2. Verify service health checks
+3. Review environment variables
+4. Check network connectivity between services

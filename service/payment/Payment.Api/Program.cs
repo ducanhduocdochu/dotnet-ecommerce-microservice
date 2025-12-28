@@ -19,7 +19,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Database
 builder.Services.AddDbContext<PaymentDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DBConnectParam")));
 
 // RabbitMQ
 builder.Services.AddRabbitMQ(builder.Configuration);
@@ -35,14 +35,14 @@ builder.Services.AddScoped<IGatewayConfigRepository, GatewayConfigRepository>();
 builder.Services.AddScoped<PaymentService>();
 
 // JWT Authentication
-var jwtSecret = builder.Configuration["JwtSettings:Secret"] ?? "YourSuperSecretKeyThatIsAtLeast32CharactersLong!";
+var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "ducanhdeptrai123_ducanhdeptrai123";
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(jwtSecret)),
             ValidateIssuer = false,
             ValidateAudience = false,
             ValidateLifetime = true,
@@ -78,6 +78,53 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+// ============================================
+// Check all service connections on startup
+// ============================================
+using (var scope = app.Services.CreateScope())
+{
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    
+    // 1. Check PostgreSQL connection
+    var dbContext = scope.ServiceProvider.GetRequiredService<Payment.Infrastructure.DB.PaymentDbContext>();
+    try
+    {
+        if (await dbContext.Database.CanConnectAsync())
+        {
+            logger.LogInformation("✅ PostgreSQL connection successful!");
+        }
+        else
+        {
+            logger.LogError("❌ PostgreSQL connection failed!");
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "❌ PostgreSQL connection error: {Message}", ex.Message);
+    }
+
+    // 2. Check RabbitMQ connection
+    try
+    {
+        var rabbitMQ = scope.ServiceProvider.GetService<Shared.Messaging.RabbitMQ.IRabbitMQConnection>();
+        if (rabbitMQ != null)
+        {
+            if (rabbitMQ.TryConnect())
+            {
+                logger.LogInformation("✅ RabbitMQ connection successful!");
+            }
+            else
+            {
+                logger.LogWarning("⚠️ RabbitMQ not connected - messaging will be unavailable");
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "⚠️ RabbitMQ connection error: {Message}", ex.Message);
+    }
+}
 
 // ============================================
 // MIDDLEWARE

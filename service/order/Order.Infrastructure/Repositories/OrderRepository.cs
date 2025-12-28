@@ -98,6 +98,7 @@ public class OrderRepository : IOrderRepository
 
     public async Task AddAsync(OrderEntity order) => await _context.Orders.AddAsync(order);
     public Task UpdateAsync(OrderEntity order) { _context.Orders.Update(order); return Task.CompletedTask; }
+    public Task DeleteAsync(OrderEntity order) { _context.Orders.Remove(order); return Task.CompletedTask; }
     public async Task SaveChangesAsync() => await _context.SaveChangesAsync();
 }
 

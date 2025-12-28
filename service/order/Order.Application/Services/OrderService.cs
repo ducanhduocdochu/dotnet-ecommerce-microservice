@@ -142,21 +142,25 @@ public class OrderService
 
         if (!string.IsNullOrEmpty(request.DiscountCode))
         {
+            Console.WriteLine($"request.DiscountCode: {request.DiscountCode}");
             var discountItems = request.Items.Select(i => new ValidateDiscountItem(
                 i.ProductId, i.CategoryId, i.Quantity, i.UnitPrice
             )).ToList();
+            Console.WriteLine($"discountItems: {discountItems}");
 
             var validateResult = await _discountClient.ValidateAsync(new ValidateDiscountRequest(
                 request.DiscountCode,
                 request.Items.Sum(i => i.Quantity * i.UnitPrice),
                 discountItems
             ));
+            Console.WriteLine($"validateResult: {validateResult}");
 
             if (!validateResult.Valid)
             {
                 _logger.LogWarning("❌ Discount validation failed: {Message}", validateResult.Message);
                 return new CheckoutResult(false, null, null, validateResult.Message);
             }
+            Console.WriteLine($"validateResult.Valid: {validateResult.Valid}");
 
             discountAmount = validateResult.DiscountAmount;
             discountCode = request.DiscountCode;

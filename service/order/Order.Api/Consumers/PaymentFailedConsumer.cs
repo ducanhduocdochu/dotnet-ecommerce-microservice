@@ -15,13 +15,18 @@ public class PaymentFailedConsumer : EventConsumer<PaymentFailedEvent>
         IRabbitMQConnection connection,
         IServiceProvider serviceProvider,
         ILogger<PaymentFailedConsumer> logger)
-        : base(connection, EventConstants.PaymentExchange, EventConstants.OrderPaymentFailedQueue, EventConstants.PaymentFailed, logger)
+        : base(
+            connection,
+            logger,
+            EventConstants.PaymentExchange,
+            EventConstants.OrderPaymentFailedQueue,
+            EventConstants.PaymentFailed)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
-    protected override async Task ProcessMessageAsync(PaymentFailedEvent message)
+    protected override async Task HandleAsync(PaymentFailedEvent message, CancellationToken cancellationToken)
     {
         _logger.LogInformation("❌ Received PaymentFailedEvent for order: {OrderId}, reason: {Reason}", 
             message.OrderId, message.FailureReason);

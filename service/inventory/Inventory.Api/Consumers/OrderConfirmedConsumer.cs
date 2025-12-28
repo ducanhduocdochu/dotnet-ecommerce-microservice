@@ -19,13 +19,18 @@ public class OrderConfirmedConsumer : EventConsumer<OrderConfirmedEvent>
         IRabbitMQConnection connection,
         IServiceProvider serviceProvider,
         ILogger<OrderConfirmedConsumer> logger)
-        : base(connection, EventConstants.OrderExchange, EventConstants.InventoryOrderConfirmedQueue, EventConstants.OrderConfirmed, logger)
+        : base(
+            connection,
+            logger,
+            EventConstants.OrderExchange,
+            EventConstants.InventoryOrderConfirmedQueue,
+            EventConstants.OrderConfirmed)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
-    protected override async Task ProcessMessageAsync(OrderConfirmedEvent message)
+    protected override async Task HandleAsync(OrderConfirmedEvent message, CancellationToken cancellationToken)
     {
         _logger.LogInformation("📦 [Inventory] Received OrderConfirmedEvent for order: {OrderNumber}", message.OrderNumber);
 

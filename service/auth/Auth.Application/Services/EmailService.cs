@@ -49,6 +49,10 @@ public class EmailService
         try
         {
             var response = await client.SendEmailAsync(msg);
+            var body = await response.Body.ReadAsStringAsync();
+            Console.WriteLine($"Token: {verificationToken}");
+            Console.WriteLine($"Status: {response.StatusCode}");
+            Console.WriteLine($"Body: {body}");
             return response.IsSuccessStatusCode;
         }
         catch

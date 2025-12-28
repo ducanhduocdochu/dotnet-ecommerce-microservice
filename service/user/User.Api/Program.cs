@@ -36,7 +36,7 @@ builder.Services.AddScoped<UserService>();
 builder.Services.AddAuthentication("Bearer")
     .AddJwtBearer("Bearer", options =>
     {
-        var secret = builder.Configuration["Jwt:Secret"] ?? "ducanhdeptrai123";
+        var secret = builder.Configuration["Jwt:Secret"] ?? "ducanhdeptrai123_ducanhdeptrai123";
         options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
         {
             ValidateIssuer = false,
@@ -73,28 +73,68 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Check database connection
+// ============================================
+// Check all service connections on startup
+// ============================================
 using (var scope = app.Services.CreateScope())
 {
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    var dbContext = scope.ServiceProvider.GetRequiredService<UserDbContext>();
     
+    // 1. Check PostgreSQL connection
+    var dbContext = scope.ServiceProvider.GetRequiredService<UserDbContext>();
     try
     {
         if (await dbContext.Database.CanConnectAsync())
         {
-            logger.LogInformation("✅ Database connection successful!");
-            logger.LogInformation("📦 Connection string: {ConnectionString}", 
-                builder.Configuration.GetConnectionString("DBConnectParam")?.Split(";")[0] + "...");
+            logger.LogInformation("✅ PostgreSQL connection successful!");
         }
         else
         {
-            logger.LogError("❌ Database connection failed!");
+            logger.LogError("❌ PostgreSQL connection failed!");
         }
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "❌ Database connection error: {Message}", ex.Message);
+        logger.LogError(ex, "❌ PostgreSQL connection error: {Message}", ex.Message);
+    }
+
+    // 2. Check Redis connection
+    try
+    {
+        var redis = scope.ServiceProvider.GetService<StackExchange.Redis.IConnectionMultiplexer>();
+        if (redis != null && redis.IsConnected)
+        {
+            logger.LogInformation("✅ Redis connection successful!");
+        }
+        else
+        {
+            logger.LogWarning("⚠️ Redis not connected - caching will be unavailable");
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "⚠️ Redis connection error: {Message}", ex.Message);
+    }
+
+    // 3. Check RabbitMQ connection
+    try
+    {
+        var rabbitMQ = scope.ServiceProvider.GetService<Shared.Messaging.RabbitMQ.IRabbitMQConnection>();
+        if (rabbitMQ != null)
+        {
+            if (rabbitMQ.TryConnect())
+            {
+                logger.LogInformation("✅ RabbitMQ connection successful!");
+            }
+            else
+            {
+                logger.LogWarning("⚠️ RabbitMQ not connected - messaging will be unavailable");
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "⚠️ RabbitMQ connection error: {Message}", ex.Message);
     }
 }
 

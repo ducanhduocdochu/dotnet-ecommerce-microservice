@@ -13,7 +13,7 @@ builder.Services.AddReverseProxy()
 builder.Services.AddAuthentication("Bearer")
     .AddJwtBearer("Bearer", options =>
     {
-        var secret = builder.Configuration["Jwt:Secret"] ?? "ducanhdeptrai123";
+        var secret = builder.Configuration["Jwt:Secret"] ?? "ducanhdeptrai123_ducanhdeptrai123";
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = false,

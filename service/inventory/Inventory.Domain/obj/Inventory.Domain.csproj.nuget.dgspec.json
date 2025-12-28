@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\Microservice Ecommerce Dotnet8\\service\\inventory\\Inventory.Domain\\Inventory.Domain.csproj": {}
+    "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Domain\\Inventory.Domain.csproj": {}
   },
   "projects": {
-    "D:\\Microservice Ecommerce Dotnet8\\service\\inventory\\Inventory.Domain\\Inventory.Domain.csproj": {
+    "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Domain\\Inventory.Domain.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\Microservice Ecommerce Dotnet8\\service\\inventory\\Inventory.Domain\\Inventory.Domain.csproj",
+        "projectUniqueName": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Domain\\Inventory.Domain.csproj",
         "projectName": "Inventory.Domain",
-        "projectPath": "D:\\Microservice Ecommerce Dotnet8\\service\\inventory\\Inventory.Domain\\Inventory.Domain.csproj",
+        "projectPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Domain\\Inventory.Domain.csproj",
         "packagesPath": "C:\\Users\\tduca\\.nuget\\packages\\",
-        "outputPath": "D:\\Microservice Ecommerce Dotnet8\\service\\inventory\\Inventory.Domain\\obj\\",
+        "outputPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Domain\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\tduca\\AppData\\Roaming\\NuGet\\NuGet.Config"

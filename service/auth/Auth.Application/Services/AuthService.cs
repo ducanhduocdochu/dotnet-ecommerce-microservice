@@ -202,6 +202,7 @@ public class AuthService
         var emailVerification = await _emailVerificationRepository.GetByTokenAsync(token);
         if (emailVerification == null) return false;
 
+
         var user = await _userRepository.GetByIdAsync(emailVerification.UserId);
         if (user == null) return false;
 
@@ -215,4 +216,5 @@ public class AuthService
 
         return true;
     }
+    
 }
