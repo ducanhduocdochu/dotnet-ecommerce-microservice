@@ -26,14 +26,15 @@ jobs:
         id: set-services
         run: |
           SERVICES=$(echo "${{ steps.changed.outputs.services_files }}" \
-            | awk -F/ '/^service\// {print $2}' \
-            | sort -u)
-
+          | awk -F/ '/^service\// {print $2}' \
+          | sort -u)
+    
           if [ -z "$SERVICES" ]; then
             echo "services=[]" >> $GITHUB_OUTPUT
           else
-            echo "services=$(printf '%s\n' $SERVICES | jq -R . | jq -s .)"
-          fi >> $GITHUB_OUTPUT
+            JSON=$(printf '%s\n' $SERVICES | jq -R . | jq -s -c .)
+            echo "services=$JSON" >> $GITHUB_OUTPUT
+          fi
 
           echo "Changed services:"
           echo "$SERVICES"
