@@ -19,7 +19,7 @@ jobs:
           echo "ref=${{ github.ref }}"
           echo "ref_name=${{ github.ref_name }}"
 
-      - name: Get changed files
+      - name: Detect changed services
         id: changed
         uses: dorny/paths-filter@v3
         with:
@@ -29,15 +29,12 @@ jobs:
               - 'service/**'
 
       - name: Extract changed services
-        env:
-            DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-            DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         id: set-services
         run: |
           SERVICES=$(echo "${{ steps.changed.outputs.services_files }}" \
-          | awk -F/ '/^service\// {print $2}' \
-          | sort -u)
-    
+            | awk -F/ '/^service\// {print $2}' \
+            | sort -u)
+
           if [ -z "$SERVICES" ]; then
             echo "services=[]" >> $GITHUB_OUTPUT
           else
@@ -47,18 +44,10 @@ jobs:
 
           echo "Changed services:"
           echo "$SERVICES"
-          echo "$DOCKERHUB_USERNAME"
-          echo "$DOCKERHUB_TOKEN"
-
-          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
-            echo "DockerHub username NOT available"
-          else
-            echo "DockerHub username available"
-          fi
 
   build-and-push:
     needs: detect
-    if: needs.detect.outputs.services != '[]'
+    if: github.event_name == 'push' && needs.detect.outputs.services != '[]'
     runs-on: ubuntu-latest
 
     strategy:
@@ -75,12 +64,34 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build & push ${{ matrix.service }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         run: |
           SERVICE=${{ matrix.service }}
+          TAG=${GITHUB_SHA::7}
 
-          DOCKERFILE_DIR="service/$SERVICE/$(ls service/$SERVICE)"
-          IMAGE_NAME="${{ secrets.DOCKERHUB_USERNAME }}/$SERVICE-api"
+          case "$SERVICE" in
+            auth)
+              DOCKERFILE_DIR="service/auth/Auth.api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/auth-api"
+              ;;
+            order)
+              DOCKERFILE_DIR="service/order/Order.api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/order-api"
+              ;;
+            *)
+              echo "Unknown service: $SERVICE"
+              exit 1
+              ;;
+          esac
 
           echo "Building $IMAGE_NAME"
-          docker build -t $IMAGE_NAME:latest $DOCKERFILE_DIR
+          echo "Dockerfile dir: $DOCKERFILE_DIR"
+
+          docker build \
+            -t $IMAGE_NAME:$TAG \
+            -t $IMAGE_NAME:latest \
+            $DOCKERFILE_DIR
+
+          docker push $IMAGE_NAME:$TAG
           docker push $IMAGE_NAME:latest
