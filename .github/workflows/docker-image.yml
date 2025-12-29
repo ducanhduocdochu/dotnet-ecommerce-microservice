@@ -30,7 +30,7 @@ jobs:
             | sort -u)
 
           if [ -z "$SERVICES" ]; then
-            echo "services=[]"
+            echo "services=[]" >> $GITHUB_OUTPUT
           else
             echo "services=$(printf '%s\n' $SERVICES | jq -R . | jq -s .)"
           fi >> $GITHUB_OUTPUT
