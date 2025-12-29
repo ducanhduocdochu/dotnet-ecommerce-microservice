@@ -1,0 +1,35 @@
+name: Print changed services (dynamic)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get changed files
+        id: changed
+        uses: dorny/paths-filter@v3
+        with:
+          list-files: shell
+          filters: |
+            services:
+              - 'service/**'
+
+      - name: Print changed services
+        run: |
+          echo "Changed files:"
+          echo "${{ steps.changed.outputs.services_files }}"
+
+          SERVICES=$(echo "${{ steps.changed.outputs.services_files }}" \
+            | awk -F/ '/^service\// {print $2}' \
+            | sort -u)
+
+          echo "Changed services:"
+          for s in $SERVICES; do
+            echo "$s"
+          done
