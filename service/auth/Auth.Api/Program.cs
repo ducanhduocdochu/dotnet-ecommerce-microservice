@@ -10,7 +10,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<AuthDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DBConnectParam")));
-// test github action1
+// test github action2
 // Register repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
@@ -248,5 +248,6 @@ app.MapDelete("/user-roles/{userId}/{roleId}", async (
 .RequireAuthorization("AdminOnly");
 
 app.Run();
+
 
 
