@@ -72,7 +72,7 @@ jobs:
 
           case "$SERVICE" in
             auth)
-              DOCKERFILE_DIR="service/auth/Auth.api"
+              DOCKERFILE_DIR="service/auth/Auth.Api"
               IMAGE_NAME="$DOCKERHUB_USERNAME/auth-api"
               ;;
             order)
