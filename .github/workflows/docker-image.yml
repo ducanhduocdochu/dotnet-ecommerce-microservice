@@ -38,8 +38,12 @@ jobs:
 
           echo "Changed services:"
           echo "$SERVICES"
-          echo ${{ secrets.DOCKERHUB_USERNAME }}
-          echo ${{ secrets.DOCKERHUB_TOKEN }}
+
+          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ]; then
+            echo "DockerHub username NOT available"
+          else
+            echo "DockerHub username available"
+          fi
 
   # build-and-push:
   #   needs: detect
