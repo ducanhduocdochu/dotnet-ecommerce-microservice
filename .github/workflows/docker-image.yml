@@ -76,8 +76,36 @@ jobs:
               IMAGE_NAME="$DOCKERHUB_USERNAME/auth-api"
               ;;
             order)
-              DOCKERFILE_DIR="service/order/Order.api"
+              DOCKERFILE_DIR="service/order/Order.Api"
               IMAGE_NAME="$DOCKERHUB_USERNAME/order-api"
+              ;;
+            product)
+              DOCKERFILE_DIR="service/product/Product.Api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/product-api"
+              ;;
+            gateway)
+              DOCKERFILE_DIR="service/gateway/Gateway.Api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/gateway"
+              ;;
+            discount)
+              DOCKERFILE_DIR="service/discount/Discount.api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/discount-api"
+              ;;
+            inventory)
+              DOCKERFILE_DIR="service/inventory/Inventory.api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/inventory-api"
+              ;;
+            notification)
+              DOCKERFILE_DIR="service/notification/Notification.Api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/notification-api"
+              ;;
+            user)
+              DOCKERFILE_DIR="service/user/User.Api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/user-api"
+              ;;
+            payment)
+              DOCKERFILE_DIR="service/payment/Payment.Api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/payment-api"
               ;;
             *)
               echo "Unknown service: $SERVICE"
