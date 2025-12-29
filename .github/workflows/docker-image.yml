@@ -89,9 +89,10 @@ jobs:
           echo "Dockerfile dir: $DOCKERFILE_DIR"
 
           docker build \
+            -f $DOCKERFILE_DIR/Dockerfile \
             -t $IMAGE_NAME:$TAG \
             -t $IMAGE_NAME:latest \
-            $DOCKERFILE_DIR
+            .
 
           docker push $IMAGE_NAME:$TAG
           docker push $IMAGE_NAME:latest
