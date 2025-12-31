@@ -32,19 +32,23 @@ jobs:
 
       - name: Extract changed services
         id: set-services
+        shell: bash
         run: |
-          SERVICES=$(echo "${{ steps.changed.outputs.services_files }}" \
+          printf "Raw services_files:\n%s\n" "${{ steps.changed.outputs.services_files }}"
+      
+          SERVICES=$(printf "%s\n" "${{ steps.changed.outputs.services_files }}" \
+            | tr ' ' '\n' \
             | awk -F/ '/^service\// {print $2}' \
             | sort -u)
-
+      
           if [ -z "$SERVICES" ]; then
             echo "services=[]" >> $GITHUB_OUTPUT
           else
-            JSON=$(printf '%s\n' $SERVICES | jq -R . | jq -s -c .)
+            JSON=$(printf "%s\n" $SERVICES | jq -R . | jq -s -c .)
             echo "services=$JSON" >> $GITHUB_OUTPUT
           fi
-
-          echo "Changed services:"
+      
+          echo "Detected services:"
           echo "$SERVICES"
 
   build-and-push:
