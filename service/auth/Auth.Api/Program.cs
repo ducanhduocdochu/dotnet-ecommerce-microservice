@@ -5,7 +5,7 @@ using Auth.Domain.Entities;
 using Auth.Infrastructure.Db;
 using Auth.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
-// upload image1a
+// upload image
 
 var builder = WebApplication.CreateBuilder(args);
 

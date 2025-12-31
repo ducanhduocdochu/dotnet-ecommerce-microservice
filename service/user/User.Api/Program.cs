@@ -6,7 +6,7 @@ using User.Infrastructure.DB;
 using User.Infrastructure.Repositories;
 using Shared.Messaging.Extensions;
 using Shared.Caching.Extensions;
-// upload image1
+// upload image
 
 var builder = WebApplication.CreateBuilder(args);
 // test github action

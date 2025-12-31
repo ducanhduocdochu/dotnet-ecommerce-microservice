@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Shared.Messaging.Extensions;
 using Shared.Caching.Extensions;
-// upload image1
+// upload image
 
 var builder = WebApplication.CreateBuilder(args);
 
