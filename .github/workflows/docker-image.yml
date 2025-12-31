@@ -25,7 +25,6 @@ jobs:
         id: changed
         uses: dorny/paths-filter@v3
         with:
-          base: ${{ github.event_name == 'pull_request' && github.base_ref || 'HEAD~1' }}
           list-files: shell
           filters: |
             services:
