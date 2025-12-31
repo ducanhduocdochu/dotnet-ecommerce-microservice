@@ -10,7 +10,7 @@ using Order.Infrastructure.DB;
 using Order.Infrastructure.Repositories;
 using Shared.Messaging.Extensions;
 using Shared.Messaging.RabbitMQ;
-// upload image
+// upload image1
 
 var builder = WebApplication.CreateBuilder(args);
 
