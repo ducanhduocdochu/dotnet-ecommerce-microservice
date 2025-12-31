@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Yarp.ReverseProxy.Configuration;
-// upload image1
+// upload image
 
 var builder = WebApplication.CreateBuilder(args);
 
