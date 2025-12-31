@@ -5,12 +5,12 @@ using Auth.Domain.Entities;
 using Auth.Infrastructure.Db;
 using Auth.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
+// upload image
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<AuthDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DBConnectParam")));
-// test github action2
 // Register repositories
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRoleRepository, RoleRepository>();
