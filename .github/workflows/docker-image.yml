@@ -94,11 +94,11 @@ jobs:
               IMAGE_NAME="$DOCKERHUB_USERNAME/gateway"
               ;;
             discount)
-              DOCKERFILE_DIR="service/discount/Discount.api"
+              DOCKERFILE_DIR="service/discount/Discount.Api"
               IMAGE_NAME="$DOCKERHUB_USERNAME/discount-api"
               ;;
             inventory)
-              DOCKERFILE_DIR="service/inventory/Inventory.api"
+              DOCKERFILE_DIR="service/inventory/Inventory.Api"
               IMAGE_NAME="$DOCKERHUB_USERNAME/inventory-api"
               ;;
             notification)
