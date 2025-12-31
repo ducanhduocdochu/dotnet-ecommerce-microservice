@@ -9,7 +9,7 @@ using Inventory.Infrastructure.Repositories;
 using Shared.Messaging.Events;
 using Shared.Messaging.Extensions;
 using Shared.Caching.Extensions;
-// upload image
+// upload image1
 
 var builder = WebApplication.CreateBuilder(args);
 
