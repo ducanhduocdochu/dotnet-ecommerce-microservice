@@ -1,0 +1,252 @@
+-- Product Service API Endpoints
+-- Base URL: /api/products
+
+-- ============================================
+-- Category APIs
+-- ============================================
+
+-- Get all categories (tree structure)
+GET /api/categories
+Response: [{ id, name, slug, description, image_url, parent_id, children: [...], sort_order }]
+
+-- Get category by ID
+GET /api/categories/{id}
+Response: { id, name, slug, description, image_url, parent_id, products_count }
+
+-- Create category (Admin only)
+POST /api/categories
+Headers: Authorization: Bearer {token}
+Body: { name, slug, description, image_url, parent_id, sort_order }
+Response: { id, name, slug, description, image_url, parent_id, sort_order }
+
+-- Update category (Admin only)
+PUT /api/categories/{id}
+Headers: Authorization: Bearer {token}
+Body: { name, slug, description, image_url, parent_id, sort_order, is_active }
+Response: { id, name, slug, description, image_url, parent_id, sort_order }
+
+-- Delete category (Admin only)
+DELETE /api/categories/{id}
+Headers: Authorization: Bearer {token}
+Response: { message: "Category deleted successfully" }
+
+-- ============================================
+-- Brand APIs
+-- ============================================
+
+-- Get all brands
+GET /api/brands
+Query: ?page=1&pageSize=20&search=name
+Response: { items: [{ id, name, slug, logo_url }], total, page, pageSize }
+
+-- Get brand by ID
+GET /api/brands/{id}
+Response: { id, name, slug, description, logo_url, website_url, products_count }
+
+-- Create brand (Admin only)
+POST /api/brands
+Headers: Authorization: Bearer {token}
+Body: { name, slug, description, logo_url, website_url }
+Response: { id, name, slug, description, logo_url, website_url }
+
+-- Update brand (Admin only)
+PUT /api/brands/{id}
+Headers: Authorization: Bearer {token}
+Body: { name, slug, description, logo_url, website_url, is_active }
+Response: { id, name, slug, description, logo_url, website_url }
+
+-- Delete brand (Admin only)
+DELETE /api/brands/{id}
+Headers: Authorization: Bearer {token}
+Response: { message: "Brand deleted successfully" }
+
+-- ============================================
+-- Product APIs (Public)
+-- ============================================
+
+-- Get all products (with filters)
+GET /api/products
+Query: ?page=1&pageSize=20&category_id=xxx&brand_id=xxx&min_price=0&max_price=1000000&sort=price_asc&search=keyword
+Response: { items: [{ id, name, slug, short_description, base_price, sale_price, primary_image, rating_average, sold_count }], total, page, pageSize }
+
+-- Get product by ID
+GET /api/products/{id}
+Response: { id, name, slug, description, short_description, base_price, sale_price, currency, quantity, category, brand, images, variants, attributes, rating_average, rating_count, sold_count, seller }
+
+-- Get product by slug
+GET /api/products/slug/{slug}
+Response: { ... same as above ... }
+
+-- Get products by category
+GET /api/products/category/{categoryId}
+Query: ?page=1&pageSize=20&sort=newest
+Response: { items: [...], total, page, pageSize }
+
+-- Get products by seller
+GET /api/products/seller/{sellerId}
+Query: ?page=1&pageSize=20
+Response: { items: [...], total, page, pageSize }
+
+-- Get featured products
+GET /api/products/featured
+Query: ?limit=10
+Response: [{ id, name, slug, base_price, sale_price, primary_image }]
+
+-- Search products
+GET /api/products/search
+Query: ?q=keyword&page=1&pageSize=20
+Response: { items: [...], total, page, pageSize }
+
+-- ============================================
+-- Product Management APIs (Seller)
+-- ============================================
+
+-- Get my products (Seller)
+GET /api/products/me
+Headers: Authorization: Bearer {token}
+Query: ?page=1&pageSize=20&status=PUBLISHED
+Response: { items: [...], total, page, pageSize }
+
+-- Create product (Seller)
+POST /api/products
+Headers: Authorization: Bearer {token}
+Body: { name, slug, description, short_description, category_id, brand_id, base_price, sale_price, cost_price, sku, quantity, weight, length, width, height, is_digital, images: [...], variants: [...], attributes: [...], tags: [...] }
+Response: { id, name, slug, status: "DRAFT" }
+
+-- Update product (Seller - owner only)
+PUT /api/products/{id}
+Headers: Authorization: Bearer {token}
+Body: { name, slug, description, ... }
+Response: { id, name, slug, ... }
+
+-- Delete product (Seller - owner only)
+DELETE /api/products/{id}
+Headers: Authorization: Bearer {token}
+Response: { message: "Product deleted successfully" }
+
+-- Submit product for approval (Seller)
+POST /api/products/{id}/submit
+Headers: Authorization: Bearer {token}
+Response: { message: "Product submitted for approval", status: "PENDING" }
+
+-- ============================================
+-- Product Image APIs (Seller)
+-- ============================================
+
+-- Add product image
+POST /api/products/{id}/images
+Headers: Authorization: Bearer {token}
+Body: { image_url, alt_text, is_primary, sort_order }
+Response: { id, product_id, image_url, alt_text, is_primary, sort_order }
+
+-- Delete product image
+DELETE /api/products/{productId}/images/{imageId}
+Headers: Authorization: Bearer {token}
+Response: { message: "Image deleted successfully" }
+
+-- Set primary image
+PATCH /api/products/{productId}/images/{imageId}/set-primary
+Headers: Authorization: Bearer {token}
+Response: { message: "Primary image updated" }
+
+-- ============================================
+-- Product Variant APIs (Seller)
+-- ============================================
+
+-- Add product variant
+POST /api/products/{id}/variants
+Headers: Authorization: Bearer {token}
+Body: { name, sku, price, quantity, image_url, options: [{ option_name, option_value }] }
+Response: { id, product_id, name, sku, price, quantity, options }
+
+-- Update product variant
+PUT /api/products/{productId}/variants/{variantId}
+Headers: Authorization: Bearer {token}
+Body: { name, sku, price, quantity, image_url, is_active }
+Response: { id, product_id, name, sku, price, quantity }
+
+-- Delete product variant
+DELETE /api/products/{productId}/variants/{variantId}
+Headers: Authorization: Bearer {token}
+Response: { message: "Variant deleted successfully" }
+
+-- ============================================
+-- Product Review APIs
+-- ============================================
+
+-- Get product reviews
+GET /api/products/{id}/reviews
+Query: ?page=1&pageSize=10&rating=5
+Response: { items: [{ id, user_id, rating, title, content, images, created_at, seller_reply }], total, page, pageSize, rating_summary: { avg, count, distribution } }
+
+-- Create product review (Customer - must have purchased)
+POST /api/products/{id}/reviews
+Headers: Authorization: Bearer {token}
+Body: { rating, title, content, images: [] }
+Response: { id, product_id, rating, title, content, created_at }
+
+-- Update my review
+PUT /api/products/{productId}/reviews/{reviewId}
+Headers: Authorization: Bearer {token}
+Body: { rating, title, content, images }
+Response: { id, rating, title, content, updated_at }
+
+-- Delete my review
+DELETE /api/products/{productId}/reviews/{reviewId}
+Headers: Authorization: Bearer {token}
+Response: { message: "Review deleted successfully" }
+
+-- Reply to review (Seller)
+POST /api/products/{productId}/reviews/{reviewId}/reply
+Headers: Authorization: Bearer {token}
+Body: { reply }
+Response: { message: "Reply added successfully" }
+
+-- ============================================
+-- Product Question APIs
+-- ============================================
+
+-- Get product questions
+GET /api/products/{id}/questions
+Query: ?page=1&pageSize=10
+Response: { items: [{ id, user_id, question, answer, answered_at }], total, page, pageSize }
+
+-- Ask question about product
+POST /api/products/{id}/questions
+Headers: Authorization: Bearer {token}
+Body: { question }
+Response: { id, product_id, question, created_at }
+
+-- Answer question (Seller)
+POST /api/products/{productId}/questions/{questionId}/answer
+Headers: Authorization: Bearer {token}
+Body: { answer }
+Response: { message: "Question answered successfully" }
+
+-- ============================================
+-- Admin APIs (Admin/Manager only)
+-- ============================================
+
+-- Get pending products for approval
+GET /api/products/admin/pending
+Headers: Authorization: Bearer {token}
+Query: ?page=1&pageSize=20
+Response: { items: [...], total, page, pageSize }
+
+-- Approve product
+POST /api/products/admin/{id}/approve
+Headers: Authorization: Bearer {token}
+Response: { message: "Product approved", status: "PUBLISHED" }
+
+-- Reject product
+POST /api/products/admin/{id}/reject
+Headers: Authorization: Bearer {token}
+Body: { reason }
+Response: { message: "Product rejected", status: "REJECTED" }
+
+-- Feature/Unfeature product
+PATCH /api/products/admin/{id}/feature
+Headers: Authorization: Bearer {token}
+Body: { is_featured: true/false }
+Response: { message: "Product featured status updated" }
+

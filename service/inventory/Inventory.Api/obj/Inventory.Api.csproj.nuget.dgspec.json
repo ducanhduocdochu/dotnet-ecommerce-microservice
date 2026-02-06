@@ -1,0 +1,531 @@
+{
+  "format": 1,
+  "restore": {
+    "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Api\\Inventory.Api.csproj": {}
+  },
+  "projects": {
+    "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Api\\Inventory.Api.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Api\\Inventory.Api.csproj",
+        "projectName": "Inventory.Api",
+        "projectPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Api\\Inventory.Api.csproj",
+        "packagesPath": "C:\\Users\\tduca\\.nuget\\packages\\",
+        "outputPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Api\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\tduca\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Application\\Inventory.Application.csproj": {
+                "projectPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Application\\Inventory.Application.csproj"
+              },
+              "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Infrastructure\\Inventory.Infrastructure.csproj": {
+                "projectPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Infrastructure\\Inventory.Infrastructure.csproj"
+              },
+              "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Caching\\Shared.Caching.csproj": {
+                "projectPath": "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Caching\\Shared.Caching.csproj"
+              },
+              "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Messaging\\Shared.Messaging.csproj": {
+                "projectPath": "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Messaging\\Shared.Messaging.csproj"
+              },
+              "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Protos\\Shared.Protos.csproj": {
+                "projectPath": "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Protos\\Shared.Protos.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Microsoft.AspNetCore.Authentication.JwtBearer": {
+              "target": "Package",
+              "version": "[8.0.11, )"
+            },
+            "Microsoft.AspNetCore.OpenApi": {
+              "target": "Package",
+              "version": "[8.0.11, )"
+            },
+            "Swashbuckle.AspNetCore": {
+              "target": "Package",
+              "version": "[6.6.2, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.AspNetCore.App": {
+              "privateAssets": "none"
+            },
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.416/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Application\\Inventory.Application.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Application\\Inventory.Application.csproj",
+        "projectName": "Inventory.Application",
+        "projectPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Application\\Inventory.Application.csproj",
+        "packagesPath": "C:\\Users\\tduca\\.nuget\\packages\\",
+        "outputPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Application\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\tduca\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Domain\\Inventory.Domain.csproj": {
+                "projectPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Domain\\Inventory.Domain.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.416/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Domain\\Inventory.Domain.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Domain\\Inventory.Domain.csproj",
+        "projectName": "Inventory.Domain",
+        "projectPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Domain\\Inventory.Domain.csproj",
+        "packagesPath": "C:\\Users\\tduca\\.nuget\\packages\\",
+        "outputPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Domain\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\tduca\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.416/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Infrastructure\\Inventory.Infrastructure.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Infrastructure\\Inventory.Infrastructure.csproj",
+        "projectName": "Inventory.Infrastructure",
+        "projectPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Infrastructure\\Inventory.Infrastructure.csproj",
+        "packagesPath": "C:\\Users\\tduca\\.nuget\\packages\\",
+        "outputPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Infrastructure\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\tduca\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {
+              "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Application\\Inventory.Application.csproj": {
+                "projectPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Application\\Inventory.Application.csproj"
+              },
+              "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Domain\\Inventory.Domain.csproj": {
+                "projectPath": "D:\\Microservice Ecommerce Dotnet8\\service\\Inventory\\Inventory.Domain\\Inventory.Domain.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Microsoft.EntityFrameworkCore": {
+              "target": "Package",
+              "version": "[8.0.10, )"
+            },
+            "Npgsql.EntityFrameworkCore.PostgreSQL": {
+              "target": "Package",
+              "version": "[8.0.10, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.416/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Caching\\Shared.Caching.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Caching\\Shared.Caching.csproj",
+        "projectName": "Shared.Caching",
+        "projectPath": "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Caching\\Shared.Caching.csproj",
+        "packagesPath": "C:\\Users\\tduca\\.nuget\\packages\\",
+        "outputPath": "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Caching\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\tduca\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Microsoft.Extensions.Caching.StackExchangeRedis": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.Configuration.Abstractions": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.DependencyInjection.Abstractions": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Newtonsoft.Json": {
+              "target": "Package",
+              "version": "[13.0.3, )"
+            },
+            "StackExchange.Redis": {
+              "target": "Package",
+              "version": "[2.7.10, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.416/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Messaging\\Shared.Messaging.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Messaging\\Shared.Messaging.csproj",
+        "projectName": "Shared.Messaging",
+        "projectPath": "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Messaging\\Shared.Messaging.csproj",
+        "packagesPath": "C:\\Users\\tduca\\.nuget\\packages\\",
+        "outputPath": "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Messaging\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\tduca\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Microsoft.Extensions.Hosting.Abstractions": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.Logging.Abstractions": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "Microsoft.Extensions.Options.ConfigurationExtensions": {
+              "target": "Package",
+              "version": "[8.0.0, )"
+            },
+            "RabbitMQ.Client": {
+              "target": "Package",
+              "version": "[6.8.1, )"
+            },
+            "System.Text.Json": {
+              "target": "Package",
+              "version": "[8.0.5, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.416/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Protos\\Shared.Protos.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Protos\\Shared.Protos.csproj",
+        "projectName": "Shared.Protos",
+        "projectPath": "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Protos\\Shared.Protos.csproj",
+        "packagesPath": "C:\\Users\\tduca\\.nuget\\packages\\",
+        "outputPath": "D:\\Microservice Ecommerce Dotnet8\\shared\\Shared.Protos\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\tduca\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Google.Protobuf": {
+              "target": "Package",
+              "version": "[3.25.1, )"
+            },
+            "Grpc.AspNetCore": {
+              "target": "Package",
+              "version": "[2.60.0, )"
+            },
+            "Grpc.Net.Client": {
+              "target": "Package",
+              "version": "[2.60.0, )"
+            },
+            "Grpc.Tools": {
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[2.60.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.416/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

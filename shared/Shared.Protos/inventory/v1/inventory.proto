@@ -1,0 +1,143 @@
+syntax = "proto3";
+
+package inventory.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option csharp_namespace = "Shared.Protos.Inventory.V1";
+
+// ============================================
+// Inventory Service
+// ============================================
+service InventoryService {
+  // Check if stock is available for a single product
+  rpc CheckStock(CheckStockRequest) returns (CheckStockResponse);
+  
+  // Check stock for multiple products (batch)
+  rpc CheckStockBatch(CheckStockBatchRequest) returns (CheckStockBatchResponse);
+  
+  // Reserve stock for an order (creates reservation)
+  rpc ReserveStock(ReserveStockRequest) returns (ReserveStockResponse);
+  
+  // Commit reserved stock (after payment success)
+  rpc CommitStock(CommitStockRequest) returns (CommitStockResponse);
+  
+  // Release reserved stock (after order cancelled/payment failed)
+  rpc ReleaseStock(ReleaseStockRequest) returns (ReleaseStockResponse);
+  
+  // Get stock information for display
+  rpc GetStock(GetStockRequest) returns (GetStockResponse);
+}
+
+// ============================================
+// Messages
+// ============================================
+
+// CheckStock - Single product
+message CheckStockRequest {
+  string product_id = 1;
+  string variant_id = 2;      // Optional
+  int32 quantity = 3;
+  string warehouse_id = 4;    // Optional, default warehouse if empty
+}
+
+message CheckStockResponse {
+  bool available = 1;
+  int32 available_quantity = 2;
+  string warehouse_id = 3;
+  string message = 4;
+}
+
+// CheckStockBatch - Multiple products
+message CheckStockBatchRequest {
+  repeated StockItem items = 1;
+}
+
+message CheckStockBatchResponse {
+  bool all_available = 1;
+  repeated StockItemAvailability items = 2;
+}
+
+message StockItem {
+  string product_id = 1;
+  string variant_id = 2;
+  int32 quantity = 3;
+}
+
+message StockItemAvailability {
+  string product_id = 1;
+  string variant_id = 2;
+  int32 requested_quantity = 3;
+  int32 available_quantity = 4;
+  bool is_available = 5;
+  string warehouse_id = 6;
+}
+
+// ReserveStock - Create reservation
+message ReserveStockRequest {
+  string order_id = 1;
+  string order_number = 2;
+  repeated StockItem items = 3;
+  int32 expiration_minutes = 4;  // Default: 30 minutes
+  string note = 5;
+}
+
+message ReserveStockResponse {
+  bool success = 1;
+  repeated string reservation_ids = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  string message = 4;
+}
+
+// CommitStock - Confirm reservation (deduct from inventory)
+message CommitStockRequest {
+  string order_id = 1;
+  repeated string reservation_ids = 2;
+}
+
+message CommitStockResponse {
+  bool success = 1;
+  string message = 2;
+  int32 items_committed = 3;
+}
+
+// ReleaseStock - Cancel reservation
+message ReleaseStockRequest {
+  string order_id = 1;
+  repeated string reservation_ids = 2;
+  string reason = 3;  // ORDER_CANCELLED, PAYMENT_FAILED, EXPIRED
+}
+
+message ReleaseStockResponse {
+  bool success = 1;
+  string message = 2;
+  int32 items_released = 3;
+}
+
+// GetStock - Get stock info for display
+message GetStockRequest {
+  string product_id = 1;
+  string variant_id = 2;
+  string warehouse_id = 3;  // Optional
+}
+
+message GetStockResponse {
+  string product_id = 1;
+  string variant_id = 2;
+  int32 total_quantity = 3;
+  int32 reserved_quantity = 4;
+  int32 available_quantity = 5;
+  bool in_stock = 6;
+  bool low_stock = 7;
+  int32 low_stock_threshold = 8;
+  repeated WarehouseStock warehouses = 9;
+}
+
+message WarehouseStock {
+  string warehouse_id = 1;
+  string warehouse_name = 2;
+  int32 quantity = 3;
+  int32 available = 4;
+  string location = 5;
+}
+

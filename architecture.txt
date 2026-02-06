@@ -1,0 +1,592 @@
+================================================================================
+                    MICROSERVICE E-COMMERCE ARCHITECTURE
+================================================================================
+                    Communication: HTTP Sync + RabbitMQ Async
+                    Database: PostgreSQL (per service)
+                    Gateway: YARP Reverse Proxy
+================================================================================
+
+
+================================================================================
+                              SYSTEM OVERVIEW
+================================================================================
+
+                                 ┌─────────────┐
+                                 │   Client    │
+                                 │ (Web/Mobile)│
+                                 └──────┬──────┘
+                                        │
+                                        ▼
+                              ┌─────────────────────┐
+                              │    API Gateway      │
+                              │    (YARP) :5000     │
+                              │  ┌───────────────┐  │
+                              │  │ JWT Validate  │  │
+                              │  │ Rate Limit    │  │
+                              │  │ Load Balance  │  │
+                              │  └───────────────┘  │
+                              └─────────┬───────────┘
+                                        │
+          ┌─────────────────────────────┼─────────────────────────────┐
+          │                             │                             │
+          ▼                             ▼                             ▼
+   ┌─────────────┐              ┌─────────────┐              ┌─────────────┐
+   │    Auth     │              │    User     │              │   Product   │
+   │   :5001     │              │   :5002     │              │   :5004     │
+   │  ┌───────┐  │              │  ┌───────┐  │              │  ┌───────┐  │
+   │  │auth_db│  │              │  │user_db│  │              │  │prod_db│  │
+   │  └───────┘  │              │  └───────┘  │              │  └───────┘  │
+   └─────────────┘              └─────────────┘              └─────────────┘
+          │                             │                             │
+          │                             │                             │
+          ▼                             ▼                             ▼
+   ┌─────────────┐              ┌─────────────┐              ┌─────────────┐
+   │   Order     │              │  Inventory  │              │  Discount   │
+   │   :5003     │              │   :5005     │              │   :5006     │
+   │  ┌───────┐  │              │  ┌───────┐  │              │  ┌───────┐  │
+   │  │order_ │  │              │  │invent_│  │              │  │discnt_│  │
+   │  │  db   │  │              │  │  db   │  │              │  │  db   │  │
+   │  └───────┘  │              │  └───────┘  │              │  └───────┘  │
+   └─────────────┘              └─────────────┘              └─────────────┘
+          │                             │                             │
+          │                             │                             │
+          ▼                             ▼                             ▼
+   ┌─────────────┐              ┌─────────────┐
+   │   Payment   │              │Notification │
+   │   :5007     │              │   :5008     │
+   │  ┌───────┐  │              │  ┌───────┐  │
+   │  │paymnt_│  │              │  │notify_│  │
+   │  │  db   │  │              │  │  db   │  │
+   │  └───────┘  │              │  └───────┘  │
+   └─────────────┘              └─────────────┘
+
+
+================================================================================
+                           SERVICE PORTS & DATABASES
+================================================================================
+
+┌──────────────────┬──────────┬──────────┬─────────────────┬──────────────────────────┐
+│     Service      │ REST Port│ gRPC Port│    Database     │       Description        │
+├──────────────────┼──────────┼──────────┼─────────────────┼──────────────────────────┤
+│ Gateway.Api      │   5010   │    -     │       -         │ API Gateway (YARP)       │
+│ Auth.Api         │   5000   │    -     │ auth_db         │ Authentication, JWT      │
+│ User.Api         │   5001   │    -     │ user_db         │ User Profile, Prefs      │
+│ Product.Api      │   5002   │    -     │ product_db      │ Products, Reviews, Cat   │
+│ Order.Api        │   5003   │    -     │ order_db        │ Orders, Cart             │
+│ Payment.Api      │   5004   │    -     │ payment_db      │ Transactions, Refunds    │
+│ Inventory.Api    │   5005   │   5015   │ inventory_db    │ Stock, Reserve (gRPC)    │
+│ Discount.Api     │   5006   │   5016   │ discount_db     │ Coupons, Promo (gRPC)    │
+│ Notification.Api │   5007   │    -     │ notification_db │ Email, SMS, Push         │
+└──────────────────┴──────────┴──────────┴─────────────────┴──────────────────────────┘
+
+Note: Services with gRPC ports expose both REST (external) and gRPC (internal) APIs
+
+
+================================================================================
+                        COMMUNICATION PATTERNS
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          HYBRID ARCHITECTURE                                 │
+│                    REST (External) + gRPC (Internal)                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │ CHECKOUT FLOW (gRPC for Critical Path - 5x faster!)                     │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  Order ──gRPC Call──► Discount     ValidateDiscount(code, userId, amount)
+         ◄───────────              { valid: true, discount_amount } ~12ms
+
+  Order ──gRPC Call──► Discount     ApplyDiscount(code, orderId, amount)
+         ◄───────────              { success: true, discount_id } ~14ms
+
+  Order ──gRPC Call──► Inventory    CheckStock(productId, quantity)
+         ◄───────────              { available: true } ~10ms
+
+  Order ──gRPC Call──► Inventory    ReserveStock(orderId, items[])
+         ◄───────────              { reservation_ids[] } ~20ms
+
+  Order ──HTTP POST──► Payment      /api/payments/create
+         ◄────────────              { payment_url, transaction_id } ~150ms
+
+  Total: ~216ms (vs ~500ms with REST only)
+
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │ PRODUCT DISPLAY FLOW (Can use gRPC batch or Cache)                      │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  Product ──gRPC Call──► Inventory   GetStockBatch(productIds[])
+           ◄──────────              { stock_map } ~40ms
+
+  Product ──Cache/gRPC──► Discount   GetProductDiscounts(productIds[])
+           ◄──────────              { discounts_map } ~15ms or from cache
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       RABBITMQ ASYNCHRONOUS                                  │
+│                  (Xử lý background - User không chờ)                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                    ┌─────────────────────────────────────┐
+                    │            RabbitMQ                  │
+                    │         localhost:5672               │
+                    └─────────────────────────────────────┘
+                                    │
+        ┌───────────────────────────┼───────────────────────────┐
+        │                           │                           │
+        ▼                           ▼                           ▼
+  ┌───────────┐              ┌───────────┐              ┌───────────┐
+  │  Exchange │              │  Exchange │              │  Exchange │
+  │user.events│              │order.event│              │payment.ev │
+  └─────┬─────┘              └─────┬─────┘              └─────┬─────┘
+        │                          │                          │
+        ▼                          ▼                          ▼
+
+
+================================================================================
+                         RABBITMQ EXCHANGES & QUEUES
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ EXCHANGE: user.events                                                        │
+│ Type: Topic                                                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Event: user.profile.updated                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Payload: { user_id, full_name, email, phone, avatar_url, updated }  │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                          │                                                   │
+│          ┌───────────────┼───────────────┐                                  │
+│          ▼               ▼               ▼                                  │
+│    ┌───────────┐   ┌───────────┐   ┌───────────┐                           │
+│    │ product.  │   │  order.   │   │ payment.  │                           │
+│    │ user.sync │   │ user.sync │   │ user.sync │  (optional)               │
+│    └─────┬─────┘   └─────┬─────┘   └───────────┘                           │
+│          │               │                                                   │
+│          ▼               ▼                                                   │
+│    Update seller   Update user                                               │
+│    /reviewer info  name/email                                                │
+│    in products     in orders                                                 │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ EXCHANGE: order.events                                                       │
+│ Type: Topic                                                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Event: order.confirmed                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Payload: {                                                           │    │
+│  │   order_id, order_number, user_id,                                   │    │
+│  │   items: [{ product_id, variant_id, quantity, seller_id }],          │    │
+│  │   discount_id, discount_amount,                                      │    │
+│  │   total_amount, confirmed_at                                         │    │
+│  │ }                                                                    │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                          │                                                   │
+│          ┌───────────────┼───────────────┬───────────────┐                  │
+│          ▼               ▼               ▼               ▼                  │
+│    ┌───────────┐   ┌───────────┐   ┌───────────┐   ┌───────────┐           │
+│    │ inventory.│   │ discount. │   │ notif.    │   │ product.  │           │
+│    │ order.    │   │ order.    │   │ order.    │   │ order.    │           │
+│    │ confirmed │   │ confirmed │   │ confirmed │   │ confirmed │           │
+│    └─────┬─────┘   └─────┬─────┘   └─────┬─────┘   └─────┬─────┘           │
+│          │               │               │               │                  │
+│          ▼               ▼               ▼               ▼                  │
+│    Commit stock    Record usage   Send email     Update sold               │
+│    (deduct qty)    (increment)    /SMS/Push      count                     │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ EXCHANGE: order.events                                                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Event: order.cancelled                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Payload: {                                                           │    │
+│  │   order_id, order_number, user_id, reason,                           │    │
+│  │   items: [{ product_id, variant_id, quantity, reservation_id }],     │    │
+│  │   discount_id, cancelled_at                                          │    │
+│  │ }                                                                    │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                          │                                                   │
+│          ┌───────────────┼───────────────┬───────────────┐                  │
+│          ▼               ▼               ▼               ▼                  │
+│    ┌───────────┐   ┌───────────┐   ┌───────────┐   ┌───────────┐           │
+│    │ inventory.│   │ discount. │   │ notif.    │   │ payment.  │           │
+│    │ order.    │   │ order.    │   │ order.    │   │ order.    │           │
+│    │ cancelled │   │ cancelled │   │ cancelled │   │ cancelled │           │
+│    └─────┬─────┘   └─────┬─────┘   └─────┬─────┘   └─────┬─────┘           │
+│          │               │               │               │                  │
+│          ▼               ▼               ▼               ▼                  │
+│    Release stock   Rollback usage Send cancel   Process                    │
+│    or return qty   (decrement)    notification  refund                     │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ EXCHANGE: payment.events                                                     │
+│ Type: Topic                                                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Event: payment.success                                                      │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Payload: { order_id, transaction_id, amount, gateway, paid_at }     │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                          │                                                   │
+│          ┌───────────────┴───────────────┐                                  │
+│          ▼                               ▼                                  │
+│    ┌───────────┐                   ┌───────────┐                            │
+│    │  order.   │                   │  notif.   │                            │
+│    │ payment.  │                   │ payment.  │                            │
+│    │ success   │                   │ success   │                            │
+│    └─────┬─────┘                   └─────┬─────┘                            │
+│          │                               │                                  │
+│          ▼                               ▼                                  │
+│    Update order                    Send payment                             │
+│    status →                        confirmation                             │
+│    CONFIRMED                       email                                    │
+│                                                                              │
+│  Event: payment.failed                                                       │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │ Payload: { order_id, transaction_id, error_code, error_msg }        │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                          │                                                   │
+│          ┌───────────────┴───────────────┐                                  │
+│          ▼                               ▼                                  │
+│    ┌───────────┐                   ┌───────────┐                            │
+│    │  order.   │                   │ inventory.│                            │
+│    │ payment.  │                   │ payment.  │                            │
+│    │ failed    │                   │ failed    │                            │
+│    └─────┬─────┘                   └─────┬─────┘                            │
+│          │                               │                                  │
+│          ▼                               ▼                                  │
+│    Update order                    Release                                  │
+│    status →                        reservation                              │
+│    PAYMENT_FAILED                                                           │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+                           COMPLETE ORDER FLOW
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    PHASE 1: ADD TO CART                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Customer                    Order Service
+      │                            │
+      │  POST /cart/items          │
+      │ ──────────────────────────►│
+      │                            │──► Check product exists (optional HTTP)
+      │                            │◄──
+      │  { cart_item }             │
+      │ ◄──────────────────────────│
+      │                            │
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    PHASE 2: CHECKOUT (HTTP Sync)                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Customer        Order           Discount        Inventory        Payment
+      │             │                │                │               │
+      │ POST        │                │                │               │
+      │ /checkout   │                │                │               │
+      │ ───────────►│                │                │               │
+      │             │                │                │               │
+      │             │ HTTP POST      │                │               │
+      │             │ /validate      │                │               │
+      │             │ ──────────────►│                │               │
+      │             │ {valid,amount} │                │               │
+      │             │ ◄──────────────│                │               │
+      │             │                │                │               │
+      │             │ HTTP POST      │                │               │
+      │             │ /apply         │                │               │
+      │             │ ──────────────►│                │               │
+      │             │ {discount_id}  │                │               │
+      │             │ ◄──────────────│                │               │
+      │             │                │                │               │
+      │             │ HTTP POST                       │               │
+      │             │ /check-stock                    │               │
+      │             │ ──────────────────────────────►│               │
+      │             │ {available: true}              │               │
+      │             │ ◄──────────────────────────────│               │
+      │             │                                │               │
+      │             │ HTTP POST                      │               │
+      │             │ /reserve                       │               │
+      │             │ ─────────────────────────────►│               │
+      │             │ {reservation_ids[]}           │               │
+      │             │ ◄─────────────────────────────│               │
+      │             │                               │               │
+      │             │──────────────────────────────────────────────────┐
+      │             │ Create Order (status: PENDING_PAYMENT)           │
+      │             │◄─────────────────────────────────────────────────┘
+      │             │                               │               │
+      │             │ HTTP POST                                     │
+      │             │ /payments/create                              │
+      │             │ ─────────────────────────────────────────────►│
+      │             │ {payment_url, txn_id}                         │
+      │             │ ◄─────────────────────────────────────────────│
+      │             │                                               │
+      │ {order,     │                                               │
+      │  payment_   │                                               │
+      │  url}       │                                               │
+      │ ◄───────────│                                               │
+      │             │                                               │
+      │ Redirect to payment_url (VNPay/Momo/ZaloPay)                │
+      │ ═══════════════════════════════════════════════════════════►│
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    PHASE 3: PAYMENT CALLBACK                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Payment Gateway          Payment Service           RabbitMQ
+        │                        │                      │
+        │ POST /callback         │                      │
+        │ (webhook)              │                      │
+        │ ──────────────────────►│                      │
+        │                        │                      │
+        │                        │──► Verify signature  │
+        │                        │──► Update txn status │
+        │                        │                      │
+        │                        │ Publish              │
+        │                        │ payment.success      │
+        │                        │ ────────────────────►│
+        │                        │                      │
+        │ { success: true }      │                      │
+        │ ◄──────────────────────│                      │
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    PHASE 4: POST-PAYMENT (RabbitMQ Async)                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                           RabbitMQ
+                              │
+                              │ payment.success
+          ┌───────────────────┴───────────────────┐
+          ▼                                       ▼
+    Order Service                           Notification
+          │                                       │
+          │ Update status → CONFIRMED             │ Send payment
+          │                                       │ confirmation
+          │ Publish order.confirmed               │
+          │ ─────────────────┐                    │
+          │                  │                    │
+                             ▼
+                        RabbitMQ
+                             │
+                             │ order.confirmed
+       ┌─────────────────────┼─────────────────────┬─────────────────────┐
+       ▼                     ▼                     ▼                     ▼
+  Inventory             Discount              Notification          Product
+       │                     │                     │                     │
+       │ Commit stock        │ Record usage        │ Send order          │ Update
+       │ (deduct qty)        │ (increment count)   │ confirmation        │ sold_count
+       │                     │                     │                     │
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    PHASE 5: ORDER CANCELLATION (RabbitMQ Async)              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Customer/Admin         Order Service              RabbitMQ
+        │                      │                       │
+        │ POST /cancel         │                       │
+        │ ────────────────────►│                       │
+        │                      │                       │
+        │                      │ Update status →       │
+        │                      │ CANCELLED             │
+        │                      │                       │
+        │                      │ Publish               │
+        │                      │ order.cancelled       │
+        │                      │ ─────────────────────►│
+        │                      │                       │
+        │ { success }          │                       │
+        │ ◄────────────────────│                       │
+                                                       │
+                               │ order.cancelled       │
+       ┌───────────────────────┴───────────────────────┴───────────────────┐
+       ▼                       ▼                       ▼                   ▼
+  Inventory               Discount               Notification          Payment
+       │                       │                       │                   │
+       │ Release stock         │ Rollback usage        │ Send cancel       │ Process
+       │ (return qty)          │ (decrement)           │ notification      │ refund
+       │                       │                       │                   │
+
+
+================================================================================
+                         EVENT CONSTANTS
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ File: shared/Shared.Messaging/Events/EventConstants.cs                       │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  // Exchanges                                                                │
+│  public const string UserExchange = "user.events";                           │
+│  public const string OrderExchange = "order.events";                         │
+│  public const string PaymentExchange = "payment.events";                     │
+│                                                                              │
+│  // Routing Keys                                                             │
+│  public const string UserProfileUpdated = "user.profile.updated";            │
+│  public const string OrderConfirmed = "order.confirmed";                     │
+│  public const string OrderCancelled = "order.cancelled";                     │
+│  public const string PaymentSuccess = "payment.success";                     │
+│  public const string PaymentFailed = "payment.failed";                       │
+│                                                                              │
+│  // Queue Names (per service per event)                                      │
+│  public const string ProductUserSyncQueue = "product.user.sync";             │
+│  public const string OrderUserSyncQueue = "order.user.sync";                 │
+│  public const string InventoryOrderConfirmedQueue = "inventory.order.conf";  │
+│  public const string InventoryOrderCancelledQueue = "inventory.order.cancel";│
+│  public const string DiscountOrderConfirmedQueue = "discount.order.confirmed";│
+│  public const string DiscountOrderCancelledQueue = "discount.order.cancelled";│
+│  public const string NotificationOrderQueue = "notification.order";          │
+│  public const string NotificationPaymentQueue = "notification.payment";      │
+│  public const string OrderPaymentSuccessQueue = "order.payment.success";     │
+│  public const string OrderPaymentFailedQueue = "order.payment.failed";       │
+│  public const string InventoryPaymentFailedQueue = "inventory.payment.fail"; │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+                         HTTP CLIENT DEPENDENCIES
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Order Service HTTP Clients                                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  services.AddHttpClient<IDiscountClient, DiscountClient>(client =>          │
+│  {                                                                           │
+│      client.BaseAddress = new Uri("http://localhost:5006");                  │
+│  });                                                                         │
+│                                                                              │
+│  services.AddHttpClient<IInventoryClient, InventoryClient>(client =>        │
+│  {                                                                           │
+│      client.BaseAddress = new Uri("http://localhost:5005");                  │
+│  });                                                                         │
+│                                                                              │
+│  services.AddHttpClient<IPaymentClient, PaymentClient>(client =>            │
+│  {                                                                           │
+│      client.BaseAddress = new Uri("http://localhost:5007");                  │
+│  });                                                                         │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Product Service HTTP Clients                                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  services.AddHttpClient<IInventoryClient, InventoryClient>(client =>        │
+│  {                                                                           │
+│      client.BaseAddress = new Uri("http://localhost:5005");                  │
+│  });                                                                         │
+│                                                                              │
+│  services.AddHttpClient<IDiscountClient, DiscountClient>(client =>          │
+│  {                                                                           │
+│      client.BaseAddress = new Uri("http://localhost:5006");                  │
+│  });                                                                         │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+                         SAGA PATTERN (COMPENSATION)
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      CHECKOUT SAGA (Compensating Transactions)               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  Step 1: Apply Discount      ──► Success ──► Step 2
+                              ──► Fail    ──► Return error (nothing to rollback)
+
+  Step 2: Reserve Inventory   ──► Success ──► Step 3
+                              ──► Fail    ──► Rollback discount (release)
+
+  Step 3: Create Order        ──► Success ──► Step 4
+                              ──► Fail    ──► Rollback inventory, discount
+
+  Step 4: Create Payment      ──► Success ──► Return payment URL
+                              ──► Fail    ──► Rollback order, inventory, discount
+
+  
+  COMPENSATION TABLE:
+  ┌─────────────────────┬─────────────────────────────────────────────────────┐
+  │ Failed Step         │ Compensating Actions                                │
+  ├─────────────────────┼─────────────────────────────────────────────────────┤
+  │ Reserve Inventory   │ Release discount                                    │
+  │ Create Order        │ Release inventory + Release discount                │
+  │ Create Payment      │ Cancel order + Release inventory + Release discount │
+  │ Payment Failed      │ Event → Release inventory + Rollback discount       │
+  │ Payment Timeout     │ Cron job → Release expired reservations             │
+  └─────────────────────┴─────────────────────────────────────────────────────┘
+
+
+================================================================================
+                         TIMEOUT & RETRY POLICIES
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ HTTP Client Policies (using Polly)                                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Timeout:        5 seconds                                                   │
+│  Retry:          3 times with exponential backoff (1s, 2s, 4s)              │
+│  Circuit Breaker: Open after 5 failures, half-open after 30s                │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Inventory Reservation Timeout                                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Reservation expires after: 15 minutes                                       │
+│  Cron job runs every: 5 minutes                                              │
+│  Action: Release expired reservations, increment stock                       │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+                              SUMMARY
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ HTTP SYNC (Real-time, User waiting)                                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ • Validate discount code                                                     │
+│ • Apply discount to order                                                    │
+│ • Check stock availability                                                   │
+│ • Reserve inventory                                                          │
+│ • Create payment transaction                                                 │
+│ • Get product info                                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ RABBITMQ ASYNC (Background, Eventually consistent)                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ • Commit inventory (after payment success)                                   │
+│ • Record discount usage                                                      │
+│ • Release inventory (after payment fail/timeout/cancel)                      │
+│ • Rollback discount usage                                                    │
+│ • Send notifications (email, SMS, push)                                      │
+│ • Sync user profile changes across services                                  │
+│ • Update product sold count                                                  │
+│ • Process refunds                                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+

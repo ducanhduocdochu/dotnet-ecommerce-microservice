@@ -1,0 +1,264 @@
+-- ============================================
+-- INVENTORY SERVICE DATABASE SCHEMA
+-- ============================================
+-- Database: inventory_db (PostgreSQL)
+-- Service: Inventory Management
+-- Port: 5005
+-- ============================================
+
+-- ============================================
+-- TABLES
+-- ============================================
+
+-- 1. Warehouses (Kho hàng)
+CREATE TABLE warehouses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code VARCHAR(50) UNIQUE NOT NULL,           -- WH-HCM-01
+    name VARCHAR(255) NOT NULL,
+    
+    -- Address
+    address TEXT,
+    ward VARCHAR(100),
+    district VARCHAR(100),
+    city VARCHAR(100),
+    country VARCHAR(100) DEFAULT 'Vietnam',
+    
+    -- Contact
+    phone VARCHAR(50),
+    email VARCHAR(255),
+    manager_name VARCHAR(255),
+    
+    -- Status
+    is_active BOOLEAN DEFAULT TRUE,
+    is_default BOOLEAN DEFAULT FALSE,           -- Kho mặc định
+    
+    -- Capacity
+    total_capacity INT,                         -- Sức chứa tối đa
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Inventory (Tồn kho theo sản phẩm & kho)
+CREATE TABLE inventory (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- Product Reference
+    product_id UUID NOT NULL,
+    variant_id UUID,                            -- Null nếu không có variant
+    sku VARCHAR(100),
+    
+    -- Warehouse
+    warehouse_id UUID NOT NULL REFERENCES warehouses(id),
+    
+    -- Stock Levels
+    quantity INT NOT NULL DEFAULT 0,            -- Tổng tồn kho
+    reserved_quantity INT DEFAULT 0,            -- Đã đặt, chưa xuất
+    available_quantity INT GENERATED ALWAYS AS (quantity - reserved_quantity) STORED,
+    
+    -- Thresholds
+    low_stock_threshold INT DEFAULT 10,         -- Cảnh báo sắp hết hàng
+    reorder_point INT DEFAULT 20,               -- Điểm đặt hàng lại
+    reorder_quantity INT DEFAULT 100,           -- Số lượng đặt lại
+    
+    -- Location in warehouse
+    location VARCHAR(100),                      -- A1-B2-C3 (Kệ-Hàng-Ô)
+    
+    -- Status
+    is_active BOOLEAN DEFAULT TRUE,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(product_id, variant_id, warehouse_id)
+);
+
+CREATE INDEX idx_inventory_product_id ON inventory(product_id);
+CREATE INDEX idx_inventory_warehouse_id ON inventory(warehouse_id);
+CREATE INDEX idx_inventory_sku ON inventory(sku);
+CREATE INDEX idx_inventory_low_stock ON inventory(available_quantity) WHERE available_quantity <= low_stock_threshold;
+
+-- 3. Inventory Transactions (Lịch sử thay đổi tồn kho)
+CREATE TABLE inventory_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    inventory_id UUID NOT NULL REFERENCES inventory(id),
+    
+    -- Transaction Type
+    type VARCHAR(50) NOT NULL,                  -- IMPORT, EXPORT, RESERVE, RELEASE, ADJUST, TRANSFER, RETURN
+    
+    -- Quantity Change
+    quantity_change INT NOT NULL,               -- + or - 
+    quantity_before INT NOT NULL,
+    quantity_after INT NOT NULL,
+    
+    -- Reference
+    reference_type VARCHAR(50),                 -- ORDER, PURCHASE_ORDER, ADJUSTMENT, TRANSFER
+    reference_id UUID,                          -- order_id, purchase_order_id, etc.
+    reference_code VARCHAR(100),                -- ORD-xxx, PO-xxx
+    
+    -- For transfers
+    from_warehouse_id UUID REFERENCES warehouses(id),
+    to_warehouse_id UUID REFERENCES warehouses(id),
+    
+    -- Reason & Notes
+    reason VARCHAR(255),
+    note TEXT,
+    
+    -- Who
+    created_by UUID,
+    created_by_name VARCHAR(255),
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_inventory_transactions_inventory_id ON inventory_transactions(inventory_id);
+CREATE INDEX idx_inventory_transactions_reference ON inventory_transactions(reference_type, reference_id);
+CREATE INDEX idx_inventory_transactions_type ON inventory_transactions(type);
+CREATE INDEX idx_inventory_transactions_created_at ON inventory_transactions(created_at DESC);
+
+-- 4. Stock Reservations (Đặt trước tồn kho - cho đơn hàng)
+CREATE TABLE stock_reservations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    inventory_id UUID NOT NULL REFERENCES inventory(id),
+    
+    -- Order Reference
+    order_id UUID NOT NULL,
+    order_item_id UUID NOT NULL,
+    order_number VARCHAR(50),
+    
+    -- Quantity
+    quantity INT NOT NULL,
+    
+    -- Status
+    status VARCHAR(50) DEFAULT 'RESERVED',      -- RESERVED, COMMITTED, RELEASED, EXPIRED
+    
+    -- Expiration (auto-release if not paid)
+    expired_at TIMESTAMP,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    committed_at TIMESTAMP,
+    released_at TIMESTAMP
+);
+
+CREATE INDEX idx_stock_reservations_inventory_id ON stock_reservations(inventory_id);
+CREATE INDEX idx_stock_reservations_order_id ON stock_reservations(order_id);
+CREATE INDEX idx_stock_reservations_status ON stock_reservations(status);
+CREATE INDEX idx_stock_reservations_expired ON stock_reservations(expired_at) WHERE status = 'RESERVED';
+
+-- 5. Purchase Orders (Đơn nhập hàng - optional)
+CREATE TABLE purchase_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    po_number VARCHAR(50) UNIQUE NOT NULL,      -- PO-20241129-001
+    
+    -- Supplier
+    supplier_name VARCHAR(255) NOT NULL,
+    supplier_contact VARCHAR(255),
+    supplier_phone VARCHAR(50),
+    supplier_email VARCHAR(255),
+    
+    -- Warehouse
+    warehouse_id UUID NOT NULL REFERENCES warehouses(id),
+    
+    -- Status
+    status VARCHAR(50) DEFAULT 'DRAFT',         -- DRAFT, PENDING, APPROVED, RECEIVED, CANCELLED
+    
+    -- Amounts
+    total_quantity INT DEFAULT 0,
+    total_amount DECIMAL(15,2) DEFAULT 0,
+    currency VARCHAR(10) DEFAULT 'VND',
+    
+    -- Dates
+    expected_date DATE,
+    received_date DATE,
+    
+    -- Notes
+    note TEXT,
+    
+    -- Who
+    created_by UUID,
+    created_by_name VARCHAR(255),
+    approved_by UUID,
+    approved_by_name VARCHAR(255),
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 6. Purchase Order Items
+CREATE TABLE purchase_order_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    purchase_order_id UUID NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+    
+    product_id UUID NOT NULL,
+    variant_id UUID,
+    sku VARCHAR(100),
+    product_name VARCHAR(255) NOT NULL,
+    
+    quantity_ordered INT NOT NULL,
+    quantity_received INT DEFAULT 0,
+    unit_price DECIMAL(15,2),
+    total_price DECIMAL(15,2),
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_po_items_po_id ON purchase_order_items(purchase_order_id);
+
+-- ============================================
+-- INVENTORY OPERATION FLOW
+-- ============================================
+--
+--  1. ORDER CREATED (Tạo đơn hàng)
+--     └──► RESERVE stock
+--          - reserved_quantity += order_quantity
+--          - Create stock_reservation (status=RESERVED, expired_at=+30min)
+--
+--  2. PAYMENT SUCCESS (Thanh toán thành công)
+--     └──► COMMIT stock
+--          - Update stock_reservation (status=COMMITTED)
+--          - (Stock đã bị reserved, không cần trừ thêm)
+--
+--  3. ORDER CANCELLED/PAYMENT FAILED
+--     └──► RELEASE stock
+--          - reserved_quantity -= order_quantity
+--          - Update stock_reservation (status=RELEASED)
+--
+--  4. ORDER SHIPPED (Xuất kho)
+--     └──► EXPORT stock (optional - nếu track riêng)
+--          - quantity -= shipped_quantity
+--          - reserved_quantity -= shipped_quantity
+--
+--  5. ORDER RETURNED (Hoàn hàng)
+--     └──► RETURN stock
+--          - quantity += returned_quantity
+--
+--  6. RESERVATION EXPIRED (Hết hạn đặt trước)
+--     └──► AUTO RELEASE (background job)
+--          - reserved_quantity -= expired_quantity
+--          - Update stock_reservation (status=EXPIRED)
+--
+-- ============================================
+
+-- ============================================
+-- STOCK CALCULATION
+-- ============================================
+--
+--  available_quantity = quantity - reserved_quantity
+--
+--  Example:
+--  - quantity = 100 (tổng trong kho)
+--  - reserved_quantity = 20 (đang có đơn hàng chờ)
+--  - available_quantity = 80 (có thể bán)
+--
+-- ============================================
+
+-- ============================================
+-- SEED DATA
+-- ============================================
+
+INSERT INTO warehouses (code, name, city, is_default) VALUES
+    ('WH-HCM-01', 'Kho Hồ Chí Minh', 'Hồ Chí Minh', TRUE),
+    ('WH-HN-01', 'Kho Hà Nội', 'Hà Nội', FALSE),
+    ('WH-DN-01', 'Kho Đà Nẵng', 'Đà Nẵng', FALSE);
+

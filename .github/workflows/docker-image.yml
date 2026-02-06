@@ -1,0 +1,132 @@
+name: Build & Push changed services
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.set-services.outputs.services }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Debug event
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+          echo "ref_name=${{ github.ref_name }}"
+
+      - name: Detect changed services
+        id: changed
+        uses: dorny/paths-filter@v3
+        with:
+          list-files: shell
+          filters: |
+            services:
+              - 'service/**'
+
+      - name: Extract changed services
+        id: set-services
+        shell: bash
+        run: |
+          printf "Raw services_files:\n%s\n" "${{ steps.changed.outputs.services_files }}"
+      
+          SERVICES=$(printf "%s\n" "${{ steps.changed.outputs.services_files }}" \
+            | tr ' ' '\n' \
+            | awk -F/ '/^service\// {print $2}' \
+            | sort -u)
+      
+          if [ -z "$SERVICES" ]; then
+            echo "services=[]" >> $GITHUB_OUTPUT
+          else
+            JSON=$(printf "%s\n" $SERVICES | jq -R . | jq -s -c .)
+            echo "services=$JSON" >> $GITHUB_OUTPUT
+          fi
+      
+          echo "Detected services:"
+          echo "$SERVICES"
+
+  build-and-push:
+    needs: detect
+    if: github.event_name == 'push' && needs.detect.outputs.services != '[]'
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.detect.outputs.services) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build & push ${{ matrix.service }}
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          SERVICE=${{ matrix.service }}
+          TAG=${GITHUB_SHA::7}
+
+          case "$SERVICE" in
+            auth)
+              DOCKERFILE_DIR="service/auth/Auth.Api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/auth-api"
+              ;;
+            order)
+              DOCKERFILE_DIR="service/order/Order.Api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/order-api"
+              ;;
+            product)
+              DOCKERFILE_DIR="service/product/Product.Api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/product-api"
+              ;;
+            gateway)
+              DOCKERFILE_DIR="service/gateway/Gateway.Api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/gateway"
+              ;;
+            discount)
+              DOCKERFILE_DIR="service/discount/Discount.Api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/discount-api"
+              ;;
+            inventory)
+              DOCKERFILE_DIR="service/inventory/Inventory.Api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/inventory-api"
+              ;;
+            notification)
+              DOCKERFILE_DIR="service/notification/Notification.Api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/notification-api"
+              ;;
+            user)
+              DOCKERFILE_DIR="service/user/User.Api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/user-api"
+              ;;
+            payment)
+              DOCKERFILE_DIR="service/payment/Payment.Api"
+              IMAGE_NAME="$DOCKERHUB_USERNAME/payment-api"
+              ;;
+            *)
+              echo "Unknown service: $SERVICE"
+              exit 1
+              ;;
+          esac
+
+          echo "Building $IMAGE_NAME"
+          echo "Dockerfile dir: $DOCKERFILE_DIR"
+
+          docker build \
+            -f $DOCKERFILE_DIR/Dockerfile \
+            -t $IMAGE_NAME:$TAG \
+            -t $IMAGE_NAME:latest \
+            .
+
+          docker push $IMAGE_NAME:$TAG
+          docker push $IMAGE_NAME:latest

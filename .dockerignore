@@ -1,0 +1,49 @@
+# Ignore build outputs
+**/bin/
+**/obj/
+**/out/
+**/publish/
+
+# Ignore IDE files
+**/.vs/
+**/.vscode/
+**/.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.swp
+*.*~
+project.lock.json
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore git files
+.git/
+.gitignore
+.gitattributes
+
+# Ignore documentation and tests
+**/*.md
+**/tests/
+**/*.http
+
+# Ignore logs
+**/logs/
+**/*.log
+
+# Ignore dependencies
+**/node_modules/
+**/packages/
+
+# Ignore Docker files in subdirectories
+**/Dockerfile
+**/docker-compose*.yml
+**/.dockerignore
+
+# Keep necessary files
+!**/appsettings.json
+!**/appsettings.Development.json
+!**/appsettings.Production.json

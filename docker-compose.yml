@@ -1,0 +1,352 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # Infrastructure Services
+  # ============================================
+  
+  postgres:
+    image: postgres:16-alpine
+    container_name: ecommerce-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: ecommerce-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: ecommerce-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ecommerce-network
+
+  # ============================================
+  # Microservices
+  # ============================================
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: service/auth/Auth.Api/Dockerfile
+    container_name: ecommerce-auth
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ConnectionStrings__DBConnectParam=Host=postgres;Port=5432;Database=auth_db;Username=postgres;Password=postgres;
+      - JWT__Secret=ducanhdeptrai123_ducanhdeptrai123
+      - JWT__Issuer=ecommerce-auth
+      - JWT__Audience=ecommerce-services
+      - JWT__ExpiryInMinutes=60
+    ports:
+      - "5001:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  user-service:
+    build:
+      context: .
+      dockerfile: service/user/User.Api/Dockerfile
+    container_name: ecommerce-user
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ConnectionStrings__DBConnectParam=Host=postgres;Port=5432;Database=user_db;Username=postgres;Password=postgres;
+      - ConnectionStrings__RedisConnection=redis:6379
+      - RabbitMQ__HostName=rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__UserName=admin
+      - RabbitMQ__Password=admin123
+      - JWT__Secret=ducanhdeptrai123_ducanhdeptrai123
+      - JWT__Issuer=ecommerce-auth
+      - JWT__Audience=ecommerce-services
+    ports:
+      - "5002:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  product-service:
+    build:
+      context: .
+      dockerfile: service/product/Product.Api/Dockerfile
+    container_name: ecommerce-product
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ConnectionStrings__DBConnectParam=Host=postgres;Port=5432;Database=product_db;Username=postgres;Password=postgres;
+      - ConnectionStrings__RedisConnection=redis:6379
+      - RabbitMQ__HostName=rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__UserName=admin
+      - RabbitMQ__Password=admin123
+      - JWT__Secret=ducanhdeptrai123_ducanhdeptrai123
+      - JWT__Issuer=ecommerce-auth
+      - JWT__Audience=ecommerce-services
+    ports:
+      - "5004:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  order-service:
+    build:
+      context: .
+      dockerfile: service/order/Order.Api/Dockerfile
+    container_name: ecommerce-order
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ConnectionStrings__DBConnectParam=Host=postgres;Port=5432;Database=order_db;Username=postgres;Password=postgres;
+      - RabbitMQ__HostName=rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__UserName=admin
+      - RabbitMQ__Password=admin123
+      - JWT__Secret=ducanhdeptrai123_ducanhdeptrai123
+      - JWT__Issuer=ecommerce-auth
+      - JWT__Audience=ecommerce-services
+      - GrpcClients__Inventory=http://inventory-service:8080
+      - GrpcClients__Discount=http://discount-service:8080
+    ports:
+      - "5003:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: service/payment/Payment.Api/Dockerfile
+    container_name: ecommerce-payment
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ConnectionStrings__DBConnectParam=Host=postgres;Port=5432;Database=payment_db;Username=postgres;Password=postgres;
+      - RabbitMQ__HostName=rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__UserName=admin
+      - RabbitMQ__Password=admin123
+      - JWT__Secret=ducanhdeptrai123_ducanhdeptrai123
+      - JWT__Issuer=ecommerce-auth
+      - JWT__Audience=ecommerce-services
+      - VNPay__TmnCode=YOUR_VNPAY_TMN_CODE
+      - VNPay__HashSecret=YOUR_VNPAY_HASH_SECRET
+      - VNPay__Url=https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+      - VNPay__ReturnUrl=http://localhost:5010/api/payment/vnpay-return
+    ports:
+      - "5005:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  inventory-service:
+    build:
+      context: .
+      dockerfile: service/inventory/Inventory.Api/Dockerfile
+    container_name: ecommerce-inventory
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - Kestrel__Endpoints__Grpc__Protocols=Http2
+      - Kestrel__Endpoints__Grpc__Url=http://+:8081
+      - ConnectionStrings__DBConnectParam=Host=postgres;Port=5432;Database=inventory_db;Username=postgres;Password=postgres;
+      - ConnectionStrings__RedisConnection=redis:6379
+      - RabbitMQ__HostName=rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__UserName=admin
+      - RabbitMQ__Password=admin123
+      - JWT__Secret=ducanhdeptrai123_ducanhdeptrai123
+      - JWT__Issuer=ecommerce-auth
+      - JWT__Audience=ecommerce-services
+    ports:
+      - "5006:8080"
+      - "5106:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  discount-service:
+    build:
+      context: .
+      dockerfile: service/discount/Discount.Api/Dockerfile
+    container_name: ecommerce-discount
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - Kestrel__Endpoints__Grpc__Protocols=Http2
+      - Kestrel__Endpoints__Grpc__Url=http://+:8081
+      - ConnectionStrings__DBConnectParam=Host=postgres;Port=5432;Database=discount_db;Username=postgres;Password=postgres;
+      - RabbitMQ__HostName=rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__UserName=admin
+      - RabbitMQ__Password=admin123
+      - JWT__Secret=ducanhdeptrai123_ducanhdeptrai123
+      - JWT__Issuer=ecommerce-auth
+      - JWT__Audience=ecommerce-services
+    ports:
+      - "5007:8080"
+      - "5107:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: service/notification/Notification.Api/Dockerfile
+    container_name: ecommerce-notification
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - RabbitMQ__HostName=rabbitmq
+      - RabbitMQ__Port=5672
+      - RabbitMQ__UserName=admin
+      - RabbitMQ__Password=admin123
+      - JWT__Secret=ducanhdeptrai123_ducanhdeptrai123
+      - JWT__Issuer=ecommerce-auth
+      - JWT__Audience=ecommerce-services
+      - Email__SmtpHost=smtp.gmail.com
+      - Email__SmtpPort=587
+      - Email__FromEmail=noreply@ecommerce.com
+      - Email__FromName=Ecommerce Platform
+      - Email__Username=YOUR_EMAIL
+      - Email__Password=YOUR_EMAIL_PASSWORD
+    ports:
+      - "5008:8080"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: .
+      dockerfile: service/gateway/Gateway.Api/Dockerfile
+    container_name: ecommerce-gateway
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - JWT__Secret=ducanhdeptrai123_ducanhdeptrai123
+      - JWT__Issuer=ecommerce-auth
+      - JWT__Audience=ecommerce-services
+      - ReverseProxy__Clusters__auth__Destinations__destination1__Address=http://auth-service:8080
+      - ReverseProxy__Clusters__user__Destinations__destination1__Address=http://user-service:8080
+      - ReverseProxy__Clusters__product__Destinations__destination1__Address=http://product-service:8080
+      - ReverseProxy__Clusters__order__Destinations__destination1__Address=http://order-service:8080
+      - ReverseProxy__Clusters__payment__Destinations__destination1__Address=http://payment-service:8080
+      - ReverseProxy__Clusters__inventory__Destinations__destination1__Address=http://inventory-service:8080
+      - ReverseProxy__Clusters__discount__Destinations__destination1__Address=http://discount-service:8080
+      - ReverseProxy__Clusters__notification__Destinations__destination1__Address=http://notification-service:8080
+    ports:
+      - "5010:8080"
+    depends_on:
+      - auth-service
+      - user-service
+      - product-service
+      - order-service
+      - payment-service
+      - inventory-service
+      - discount-service
+      - notification-service
+    networks:
+      - ecommerce-network
+    restart: unless-stopped
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  ecommerce-network:
+    driver: bridge
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local

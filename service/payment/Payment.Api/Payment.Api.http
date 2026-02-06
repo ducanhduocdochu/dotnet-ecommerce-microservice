@@ -1,0 +1,623 @@
+###############################################################################
+#                       PAYMENT SERVICE API TESTING
+###############################################################################
+#
+# Base URLs:
+#   - Direct:  http://localhost:5007
+#   - Gateway: http://localhost:5010/api/payments
+#
+# Supported Gateways: VNPAY, MOMO, ZALOPAY
+#
+###############################################################################
+
+@baseUrl = http://localhost:5007
+@gatewayUrl = http://localhost:5010
+
+# Variables
+@accessToken = YOUR_JWT_TOKEN_HERE
+@adminToken = YOUR_ADMIN_TOKEN_HERE
+@paymentId = YOUR_PAYMENT_ID
+@refundId = YOUR_REFUND_ID
+@methodId = YOUR_PAYMENT_METHOD_ID
+@orderId = YOUR_ORDER_ID
+
+
+###############################################################################
+# 1. PAYMENT TRANSACTION APIs (User)
+###############################################################################
+
+### 1.1 Create Payment
+# Tạo payment transaction và nhận payment URL từ gateway
+POST {{baseUrl}}/api/payments/create
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "orderId": "{{orderId}}",
+    "amount": 2000000,
+    "gateway": "VNPAY",
+    "returnUrl": "http://localhost:3000/payment/result",
+    "description": "Thanh toán đơn hàng #ORD-001"
+}
+
+### Payment Gateways:
+# - VNPAY: VNPay e-wallet & banking
+# - MOMO: MoMo e-wallet
+# - ZALOPAY: ZaloPay e-wallet
+
+### Expected Response (200 OK):
+# {
+#     "id": "payment-uuid",
+#     "transactionCode": "PAY-20240101-001",
+#     "paymentUrl": "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?...",
+#     "amount": 2000000,
+#     "gateway": "VNPAY",
+#     "status": "PENDING"
+# }
+
+
+###############################################################################
+
+### 1.2 Get Payment by ID
+GET {{baseUrl}}/api/payments/{{paymentId}}
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "id": "uuid",
+#     "orderId": "uuid",
+#     "userId": "uuid",
+#     "transactionCode": "PAY-20240101-001",
+#     "amount": 2000000,
+#     "gateway": "VNPAY",
+#     "status": "SUCCESS",
+#     "description": "...",
+#     "gatewayTransactionId": "VNP123456789",
+#     "paidAt": "2024-01-01T10:30:00Z",
+#     "createdAt": "2024-01-01T10:25:00Z"
+# }
+
+
+###############################################################################
+
+### 1.3 Get Payment by Transaction Code
+GET {{baseUrl}}/api/payments/code/PAY-20240101-001
+Authorization: Bearer {{accessToken}}
+
+
+###############################################################################
+
+### 1.4 Get Payment Status (Internal - for Order Service)
+GET {{baseUrl}}/api/payments/{{paymentId}}/status
+
+### Expected Response (200 OK):
+# {
+#     "id": "uuid",
+#     "orderId": "uuid",
+#     "status": "SUCCESS",
+#     "amount": 2000000,
+#     "gatewayTransactionId": "VNP123456789",
+#     "paidAt": "2024-01-01T10:30:00Z"
+# }
+
+
+###############################################################################
+
+### 1.5 Get My Payment History
+GET {{baseUrl}}/api/payments/me?page=1&pageSize=10&status=SUCCESS
+Authorization: Bearer {{accessToken}}
+
+### Query Parameters:
+# - page: default 1
+# - pageSize: default 10
+# - status: PENDING, SUCCESS, FAILED, CANCELLED, REFUNDED
+
+### Expected Response (200 OK):
+# {
+#     "items": [
+#         {
+#             "id": "uuid",
+#             "orderId": "uuid",
+#             "transactionCode": "PAY-001",
+#             "amount": 2000000,
+#             "gateway": "VNPAY",
+#             "status": "SUCCESS",
+#             "paidAt": "...",
+#             "createdAt": "..."
+#         }
+#     ],
+#     "page": 1,
+#     "pageSize": 10,
+#     "totalCount": 15,
+#     "totalPages": 2
+# }
+
+
+###############################################################################
+
+### 1.6 Cancel Payment
+# Chỉ có thể cancel payment PENDING
+POST {{baseUrl}}/api/payments/{{paymentId}}/cancel
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Payment cancelled",
+#     "status": "CANCELLED"
+# }
+
+
+###############################################################################
+# 2. PAYMENT CALLBACK APIs (Public - từ Payment Gateways)
+###############################################################################
+
+### 2.1 VNPay IPN Callback
+# Gateway sẽ call endpoint này sau khi user thanh toán
+GET {{baseUrl}}/api/payments/callback/vnpay?vnp_Amount=200000000&vnp_BankCode=NCB&vnp_ResponseCode=00&vnp_TransactionNo=12345&vnp_TxnRef=PAY-001&vnp_SecureHash=abc123
+
+### Expected Response (200 OK):
+# {
+#     "RspCode": "00",
+#     "Message": "Payment successful"
+# }
+
+
+###############################################################################
+
+### 2.2 VNPay Return URL
+# User sẽ được redirect về đây sau khi thanh toán
+GET {{baseUrl}}/api/payments/return/vnpay?vnp_ResponseCode=00&vnp_TxnRef=PAY-001
+
+# → Redirect to: http://localhost:3000/payment/result?status=success&txn_ref=PAY-001
+
+
+###############################################################################
+
+### 2.3 MoMo IPN Callback
+POST {{baseUrl}}/api/payments/callback/momo
+Content-Type: application/json
+
+{
+    "partnerCode": "MOMO",
+    "orderId": "PAY-001",
+    "requestId": "REQ-001",
+    "amount": 2000000,
+    "orderInfo": "Thanh toán đơn hàng",
+    "orderType": "momo_wallet",
+    "transId": "MOMO-123456",
+    "resultCode": 0,
+    "message": "Successful.",
+    "payType": "qr",
+    "signature": "abc123"
+}
+
+### Expected Response (200 OK):
+# {
+#     "status": 0,
+#     "message": "Payment processed"
+# }
+
+
+###############################################################################
+# 3. SAVED PAYMENT METHODS (User)
+###############################################################################
+
+### 3.1 Get My Payment Methods
+GET {{baseUrl}}/api/payments/methods
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "items": [
+#         {
+#             "id": "uuid",
+#             "userId": "uuid",
+#             "type": "CREDIT_CARD",
+#             "provider": "VISA",
+#             "cardNumber": "**** **** **** 1234",
+#             "cardHolderName": "NGUYEN VAN A",
+#             "expiryMonth": 12,
+#             "expiryYear": 2025,
+#             "isDefault": true,
+#             "createdAt": "..."
+#         },
+#         {
+#             "id": "uuid",
+#             "type": "BANK_ACCOUNT",
+#             "provider": "Vietcombank",
+#             "accountNumber": "****5678",
+#             "accountName": "NGUYEN VAN A",
+#             "isDefault": false
+#         }
+#     ]
+# }
+
+
+###############################################################################
+
+### 3.2 Add Payment Method
+POST {{baseUrl}}/api/payments/methods
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "type": "CREDIT_CARD",
+    "provider": "VISA",
+    "cardNumber": "4111111111111111",
+    "cardHolderName": "NGUYEN VAN A",
+    "expiryMonth": 12,
+    "expiryYear": 2025,
+    "cvv": "123",
+    "isDefault": false
+}
+
+### Payment Method Types:
+# - CREDIT_CARD
+# - DEBIT_CARD
+# - BANK_ACCOUNT
+# - E_WALLET
+
+### Expected Response (200 OK):
+# {
+#     "method": {
+#         "id": "new-uuid",
+#         "type": "CREDIT_CARD",
+#         "cardNumber": "**** **** **** 1111",
+#         ...
+#     },
+#     "message": "Payment method added"
+# }
+
+
+###############################################################################
+
+### 3.3 Update Payment Method
+PUT {{baseUrl}}/api/payments/methods/{{methodId}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "cardHolderName": "NGUYEN VAN A",
+    "expiryMonth": 6,
+    "expiryYear": 2026
+}
+
+### Expected Response (200 OK):
+# {
+#     "id": "uuid",
+#     "message": "Payment method updated"
+# }
+
+
+###############################################################################
+
+### 3.4 Delete Payment Method
+DELETE {{baseUrl}}/api/payments/methods/{{methodId}}
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Payment method removed"
+# }
+
+
+###############################################################################
+
+### 3.5 Set Default Payment Method
+PUT {{baseUrl}}/api/payments/methods/{{methodId}}/default
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Default payment method updated"
+# }
+
+
+###############################################################################
+# 4. REFUND APIs (User)
+###############################################################################
+
+### 4.1 Create Refund Request
+POST {{baseUrl}}/api/payments/{{paymentId}}/refund
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "amount": 2000000,
+    "reason": "CUSTOMER_REQUEST",
+    "description": "Hàng không đúng mô tả",
+    "bankAccount": "0123456789",
+    "bankName": "Vietcombank",
+    "bankAccountName": "NGUYEN VAN A"
+}
+
+### Refund Reasons:
+# - CUSTOMER_REQUEST: Khách hàng yêu cầu
+# - OUT_OF_STOCK: Hết hàng
+# - DUPLICATE_PAYMENT: Thanh toán trùng
+# - QUALITY_ISSUE: Vấn đề chất lượng
+# - OTHER: Lý do khác
+
+### Expected Response (200 OK):
+# {
+#     "refund": {
+#         "id": "refund-uuid",
+#         "paymentId": "uuid",
+#         "amount": 2000000,
+#         "reason": "CUSTOMER_REQUEST",
+#         "status": "PENDING"
+#     },
+#     "message": "Refund request submitted"
+# }
+
+
+###############################################################################
+
+### 4.2 Get Refund by ID
+GET {{baseUrl}}/api/payments/refunds/{{refundId}}
+Authorization: Bearer {{accessToken}}
+
+
+###############################################################################
+
+### 4.3 Get My Refunds
+GET {{baseUrl}}/api/payments/refunds/me?page=1&pageSize=10&status=APPROVED
+Authorization: Bearer {{accessToken}}
+
+### Query Parameters:
+# - page: default 1
+# - pageSize: default 10
+# - status: PENDING, APPROVED, REJECTED, COMPLETED
+
+### Expected Response (200 OK):
+# {
+#     "items": [
+#         {
+#             "id": "uuid",
+#             "paymentId": "uuid",
+#             "amount": 2000000,
+#             "reason": "CUSTOMER_REQUEST",
+#             "status": "APPROVED",
+#             "approvedBy": "Admin User",
+#             "approvedAt": "...",
+#             "createdAt": "..."
+#         }
+#     ],
+#     "page": 1,
+#     "pageSize": 10,
+#     "totalCount": 5
+# }
+
+
+###############################################################################
+# 5. ADMIN APIs - TRANSACTIONS
+###############################################################################
+
+### 5.1 Get All Transactions (Admin)
+GET {{baseUrl}}/api/payments/admin/transactions?page=1&pageSize=20&status=SUCCESS&gateway=VNPAY&from=2024-01-01&to=2024-12-31
+Authorization: Bearer {{adminToken}}
+
+### Query Parameters:
+# - page, pageSize
+# - status: PENDING, SUCCESS, FAILED, CANCELLED, REFUNDED
+# - gateway: VNPAY, MOMO, ZALOPAY
+# - from, to: Date range (YYYY-MM-DD)
+
+### Expected Response (200 OK):
+# {
+#     "items": [
+#         {
+#             "id": "uuid",
+#             "orderId": "uuid",
+#             "userId": "uuid",
+#             "userName": "John Doe",
+#             "transactionCode": "PAY-001",
+#             "amount": 2000000,
+#             "gateway": "VNPAY",
+#             "status": "SUCCESS",
+#             "paidAt": "...",
+#             "createdAt": "..."
+#         }
+#     ],
+#     "page": 1,
+#     "pageSize": 20,
+#     "totalCount": 150,
+#     "totalPages": 8
+# }
+
+
+###############################################################################
+
+### 5.2 Get Transaction by ID (Admin)
+GET {{baseUrl}}/api/payments/admin/transactions/{{paymentId}}
+Authorization: Bearer {{adminToken}}
+
+
+###############################################################################
+# 6. ADMIN APIs - REFUNDS
+###############################################################################
+
+### 6.1 Get All Refunds (Admin)
+GET {{baseUrl}}/api/payments/admin/refunds?page=1&pageSize=20&status=PENDING
+Authorization: Bearer {{adminToken}}
+
+### Expected Response (200 OK):
+# {
+#     "items": [
+#         {
+#             "id": "uuid",
+#             "paymentId": "uuid",
+#             "userId": "uuid",
+#             "userName": "John Doe",
+#             "amount": 2000000,
+#             "reason": "CUSTOMER_REQUEST",
+#             "status": "PENDING",
+#             "createdAt": "..."
+#         }
+#     ],
+#     "page": 1,
+#     "pageSize": 20,
+#     "totalCount": 10
+# }
+
+
+###############################################################################
+
+### 6.2 Process Refund (Approve/Reject)
+PUT {{baseUrl}}/api/payments/admin/refunds/{{refundId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "action": "APPROVE",
+    "adminNotes": "Refund approved - customer request verified"
+}
+
+### Actions:
+# - APPROVE: Chấp nhận hoàn tiền
+# - REJECT: Từ chối hoàn tiền
+
+### Expected Response (200 OK):
+# {
+#     "id": "uuid",
+#     "message": "Refund approved"
+# }
+
+
+###############################################################################
+
+### 6.3 Execute Refund (Transfer Money)
+# Sau khi APPROVE, thực hiện chuyển tiền về gateway
+POST {{baseUrl}}/api/payments/admin/refunds/{{refundId}}/execute
+Authorization: Bearer {{adminToken}}
+
+### Expected Response (200 OK):
+# {
+#     "id": "uuid",
+#     "message": "Refund executed"
+# }
+
+
+###############################################################################
+# 7. ADMIN APIs - GATEWAY CONFIGURATION
+###############################################################################
+
+### 7.1 Get All Gateway Configs (Admin)
+GET {{baseUrl}}/api/payments/admin/gateways
+Authorization: Bearer {{adminToken}}
+
+### Expected Response (200 OK):
+# {
+#     "items": [
+#         {
+#             "id": "uuid",
+#             "gatewayCode": "VNPAY",
+#             "gatewayName": "VNPay",
+#             "isActive": true,
+#             "merchantId": "MERCHANT123",
+#             "apiUrl": "https://sandbox.vnpayment.vn/...",
+#             "returnUrl": "http://localhost:5007/api/payments/return/vnpay"
+#         }
+#     ]
+# }
+
+
+###############################################################################
+
+### 7.2 Update Gateway Config (Admin)
+PUT {{baseUrl}}/api/payments/admin/gateways/VNPAY
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "isActive": true,
+    "merchantId": "NEW_MERCHANT_ID",
+    "secretKey": "NEW_SECRET_KEY",
+    "apiUrl": "https://payment.vnpay.vn/..."
+}
+
+### Expected Response (200 OK):
+# {
+#     "gateway_code": "VNPAY",
+#     "message": "Gateway config updated"
+# }
+
+
+###############################################################################
+# 8. INTERNAL APIs
+###############################################################################
+
+### 8.1 Verify Payment (Internal - from Order Service)
+GET {{baseUrl}}/api/payments/internal/verify/{{orderId}}
+
+### Expected Response (200 OK):
+# {
+#     "orderId": "uuid",
+#     "isPaid": true,
+#     "paymentId": "uuid",
+#     "amount": 2000000,
+#     "paidAt": "2024-01-01T10:30:00Z"
+# }
+
+
+###############################################################################
+# 9. GATEWAY ROUTES
+###############################################################################
+
+### 9.1 Create Payment via Gateway
+POST {{gatewayUrl}}/api/payments/create
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "orderId": "{{orderId}}",
+    "amount": 2000000,
+    "gateway": "VNPAY"
+}
+
+### 9.2 Get My Payments via Gateway
+GET {{gatewayUrl}}/api/payments/me?page=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+
+
+###############################################################################
+# API SUMMARY
+###############################################################################
+#
+# | Method | Endpoint                                  | Auth  | Description                    |
+# |--------|-------------------------------------------|-------|--------------------------------|
+# | **Payment Transactions** |
+# | POST   | /api/payments/create                      | User  | Create payment                 |
+# | GET    | /api/payments/{id}                        | User  | Get payment by ID              |
+# | GET    | /api/payments/code/{code}                 | User  | Get payment by code            |
+# | GET    | /api/payments/{id}/status                 | ❌    | Get payment status             |
+# | GET    | /api/payments/me                          | User  | Get my payments                |
+# | POST   | /api/payments/{id}/cancel                 | User  | Cancel payment                 |
+# | **Payment Callbacks** |
+# | GET    | /api/payments/callback/vnpay              | ❌    | VNPay IPN callback             |
+# | GET    | /api/payments/return/vnpay                | ❌    | VNPay return URL               |
+# | POST   | /api/payments/callback/momo               | ❌    | MoMo IPN callback              |
+# | **Payment Methods** |
+# | GET    | /api/payments/methods                     | User  | Get my payment methods         |
+# | POST   | /api/payments/methods                     | User  | Add payment method             |
+# | PUT    | /api/payments/methods/{id}                | User  | Update payment method          |
+# | DELETE | /api/payments/methods/{id}                | User  | Delete payment method          |
+# | PUT    | /api/payments/methods/{id}/default        | User  | Set default method             |
+# | **Refunds** |
+# | POST   | /api/payments/{id}/refund                 | User  | Create refund request          |
+# | GET    | /api/payments/refunds/{id}                | User  | Get refund by ID               |
+# | GET    | /api/payments/refunds/me                  | User  | Get my refunds                 |
+# | **Admin - Transactions** |
+# | GET    | /api/payments/admin/transactions          | Admin | Get all transactions           |
+# | GET    | /api/payments/admin/transactions/{id}     | Admin | Get transaction detail         |
+# | **Admin - Refunds** |
+# | GET    | /api/payments/admin/refunds               | Admin | Get all refunds                |
+# | PUT    | /api/payments/admin/refunds/{id}          | Admin | Approve/Reject refund          |
+# | POST   | /api/payments/admin/refunds/{id}/execute  | Admin | Execute refund                 |
+# | **Admin - Gateways** |
+# | GET    | /api/payments/admin/gateways              | Admin | Get gateway configs            |
+# | PUT    | /api/payments/admin/gateways/{code}       | Admin | Update gateway config          |
+# | **Internal** |
+# | GET    | /api/payments/internal/verify/{orderId}   | ❌    | Verify payment                 |
+#
+###############################################################################

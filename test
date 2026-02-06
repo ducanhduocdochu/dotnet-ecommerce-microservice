@@ -1,0 +1,16 @@
+dotnet new sln -n UserService
+dotnet new webapi -n User.Api
+dotnet new classlib -n User.Application
+dotnet new classlib -n User.Domain
+dotnet new classlib -n User.Infrastructure
+
+dotnet sln UserService.sln add User.Api/User.Api.csproj
+dotnet sln UserService.sln add User.Application/User.Application.csproj
+dotnet sln UserService.sln add User.Domain/User.Domain.csproj
+dotnet sln UserService.sln add User.Infrastructure/User.Infrastructure.csproj
+
+dotnet add User.Application/User.Application.csproj reference User.Domain/User.Domain.csproj
+dotnet add User.Infrastructure/User.Infrastructure.csproj reference User.Domain/User.Domain.csproj
+dotnet add User.Infrastructure/User.Infrastructure.csproj reference User.Application/User.Application.csproj
+dotnet add User.Api/User.Api.csproj reference User.Application/User.Application.csproj
+dotnet add User.Api/User.Api.csproj reference User.Infrastructure/User.Infrastructure.csproj

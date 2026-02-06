@@ -1,0 +1,95 @@
+-- Auth Service API Endpoints
+-- Base URL: /auth
+
+-- ============================================
+-- Authentication APIs
+-- ============================================
+
+-- Register new user
+POST /auth/register
+Body: { email, password, full_name }
+Response: { id, email, full_name }
+
+-- Login user
+POST /auth/login
+Body: { email, password }
+Response: { access_token, refresh_token }
+
+-- Refresh access token
+POST /auth/refresh
+Body: { refresh_token }
+Response: { access_token, refresh_token }
+
+-- Logout user
+POST /auth/logout
+Body: { refresh_token }
+Response: { message: "Logged out successfully" }
+
+-- ============================================
+-- Email Verification APIs
+-- ============================================
+
+-- Send verification email
+POST /auth/send-verification-email
+Body: { email }
+Response: { message: "Verification email sent successfully" }
+
+-- Verify email with token
+POST /auth/verify-email
+Body: { token }
+Response: { message: "Email verified successfully. Your account has been activated." }
+
+-- ============================================
+-- User Info APIs
+-- ============================================
+
+-- Get current user info
+GET /auth/me
+Headers: Authorization: Bearer {token}
+Response: { id, email, full_name, is_active, created_at }
+
+-- Get current user permissions/roles
+GET /auth/permissions
+Headers: Authorization: Bearer {token}
+Response: { id, email, roles: [{ id, name, description }] }
+
+-- ============================================
+-- Role Management APIs (Admin only)
+-- ============================================
+
+-- Get all roles
+GET /roles
+Headers: Authorization: Bearer {token}
+Response: [{ id, name, description }]
+
+-- Create new role
+POST /roles
+Headers: Authorization: Bearer {token}
+Body: { name, description }
+Response: { id, name, description }
+
+-- Update role
+PUT /roles/{id}
+Headers: Authorization: Bearer {token}
+Body: { name, description }
+Response: { id, name, description }
+
+-- Delete role
+DELETE /roles/{id}
+Headers: Authorization: Bearer {token}
+Response: { message: "Role deleted successfully" }
+
+-- ============================================
+-- User-Role Assignment APIs (Admin only)
+-- ============================================
+
+-- Assign role to user
+POST /user-roles
+Headers: Authorization: Bearer {token}
+Body: { user_id, role_id }
+Response: { id, user_id, role_id }
+
+-- Remove role from user
+DELETE /user-roles/{userId}/{roleId}
+Headers: Authorization: Bearer {token}
+Response: { message: "Role removed from user" }

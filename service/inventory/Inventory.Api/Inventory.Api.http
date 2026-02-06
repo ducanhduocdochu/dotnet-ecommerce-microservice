@@ -1,0 +1,516 @@
+###############################################################################
+#                      INVENTORY SERVICE API TESTING
+###############################################################################
+#
+# Base URLs:
+#   - Direct:  http://localhost:5005
+#   - Gateway: http://localhost:5010/api/inventory
+#
+# gRPC: localhost:5015
+#
+###############################################################################
+
+@baseUrl = http://localhost:5005
+@gatewayUrl = http://localhost:5010
+
+# Variables
+@accessToken = YOUR_JWT_TOKEN_HERE
+@adminToken = YOUR_ADMIN_TOKEN_HERE
+@sellerToken = YOUR_SELLER_TOKEN_HERE
+@warehouseId = YOUR_WAREHOUSE_ID
+@inventoryId = YOUR_INVENTORY_ID
+@productId = YOUR_PRODUCT_ID
+@variantId = YOUR_VARIANT_ID
+@orderId = YOUR_ORDER_ID
+
+
+###############################################################################
+# 1. PUBLIC STOCK CHECK APIs (No Auth Required)
+###############################################################################
+
+### 1.1 Check Product Stock
+# Kiểm tra tồn kho của 1 sản phẩm/variant
+GET {{baseUrl}}/api/inventory/products/{{productId}}/check?variantId={{variantId}}
+
+### Expected Response (200 OK):
+# {
+#     "productId": "uuid",
+#     "variantId": "uuid",
+#     "totalAvailable": 100,
+#     "warehouses": [
+#         {
+#             "warehouseId": "uuid",
+#             "warehouseName": "Hanoi Warehouse",
+#             "available": 50
+#         },
+#         {
+#             "warehouseId": "uuid",
+#             "warehouseName": "HCMC Warehouse",
+#             "available": 50
+#         }
+#     ]
+# }
+
+
+###############################################################################
+
+### 1.2 Check Multiple Products Stock
+POST {{baseUrl}}/api/inventory/products
+Content-Type: application/json
+
+[
+    "product-uuid-1",
+    "product-uuid-2",
+    "product-uuid-3"
+]
+
+### Expected Response (200 OK):
+# {
+#     "items": [
+#         {
+#             "productId": "uuid-1",
+#             "variantId": null,
+#             "totalAvailable": 100
+#         },
+#         {
+#             "productId": "uuid-2",
+#             "variantId": null,
+#             "totalAvailable": 50
+#         }
+#     ]
+# }
+
+
+###############################################################################
+# 2. STOCK RESERVATION APIs (Internal - called by Order Service)
+###############################################################################
+
+### 2.1 Reserve Stock
+# Đặt trước tồn kho cho đơn hàng (15 phút timeout)
+POST {{baseUrl}}/api/inventory/reserve
+Content-Type: application/json
+
+{
+    "orderId": "{{orderId}}",
+    "items": [
+        {
+            "productId": "product-uuid",
+            "variantId": "variant-uuid",
+            "quantity": 2,
+            "warehouseId": "warehouse-uuid"
+        },
+        {
+            "productId": "product-uuid-2",
+            "variantId": null,
+            "quantity": 1
+        }
+    ]
+}
+
+### Expected Response (200 OK):
+# {
+#     "orderId": "uuid",
+#     "isReserved": true,
+#     "reservations": [
+#         {
+#             "reservationId": "uuid",
+#             "productId": "uuid",
+#             "variantId": "uuid",
+#             "quantity": 2,
+#             "warehouseId": "uuid"
+#         }
+#     ]
+# }
+
+### Error Response (400 Bad Request):
+# {
+#     "message": "Insufficient stock for product ...",
+#     "isReserved": false
+# }
+
+
+###############################################################################
+
+### 2.2 Commit Stock (Confirm Reservation)
+# Xác nhận đơn hàng thành công → trừ stock thực tế
+POST {{baseUrl}}/api/inventory/commit?orderId={{orderId}}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Stock committed"
+# }
+
+
+###############################################################################
+
+### 2.3 Release Stock (Cancel Reservation)
+# Hủy đặt trước → trả lại stock
+POST {{baseUrl}}/api/inventory/release
+Content-Type: application/json
+
+{
+    "orderId": "{{orderId}}",
+    "reason": "ORDER_CANCELLED"
+}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Stock released",
+#     "isReleased": true
+# }
+
+
+###############################################################################
+
+### 2.4 Deduct Stock (Direct)
+# Trừ stock trực tiếp (không qua reservation)
+POST {{baseUrl}}/api/inventory/deduct
+Content-Type: application/json
+
+{
+    "productId": "product-uuid",
+    "variantId": "variant-uuid",
+    "quantity": 5,
+    "warehouseId": "warehouse-uuid",
+    "reason": "SALE",
+    "referenceId": "ORDER-001"
+}
+
+### Expected Response (200 OK):
+# {
+#     "success": true
+# }
+
+
+###############################################################################
+
+### 2.5 Return Stock
+# Trả lại hàng → cộng stock
+POST {{baseUrl}}/api/inventory/return
+Content-Type: application/json
+
+{
+    "productId": "product-uuid",
+    "variantId": "variant-uuid",
+    "quantity": 2,
+    "warehouseId": "warehouse-uuid",
+    "reason": "REFUND",
+    "referenceId": "ORDER-001"
+}
+
+### Expected Response (200 OK):
+# {
+#     "success": true
+# }
+
+
+###############################################################################
+# 3. WAREHOUSE MANAGEMENT (Admin)
+###############################################################################
+
+### 3.1 Get All Warehouses
+GET {{baseUrl}}/api/inventory/warehouses
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "items": [
+#         {
+#             "id": "uuid",
+#             "name": "Hanoi Main Warehouse",
+#             "code": "HN-001",
+#             "address": "123 Street, Hanoi",
+#             "city": "Hanoi",
+#             "isActive": true,
+#             "createdAt": "..."
+#         }
+#     ]
+# }
+
+
+###############################################################################
+
+### 3.2 Get Warehouse by ID
+GET {{baseUrl}}/api/inventory/warehouses/{{warehouseId}}
+Authorization: Bearer {{accessToken}}
+
+
+###############################################################################
+
+### 3.3 Create Warehouse (Admin Only)
+POST {{baseUrl}}/api/inventory/warehouses
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "name": "Da Nang Warehouse",
+    "code": "DN-001",
+    "address": "456 Street, Da Nang",
+    "city": "Da Nang",
+    "district": "Hai Chau",
+    "ward": "Thanh Binh",
+    "postalCode": "550000",
+    "phone": "0236123456",
+    "email": "danang@warehouse.com",
+    "isActive": true
+}
+
+### Expected Response (201 Created):
+# {
+#     "warehouse": {
+#         "id": "new-uuid",
+#         "name": "Da Nang Warehouse",
+#         ...
+#     },
+#     "message": "Warehouse created"
+# }
+
+
+###############################################################################
+
+### 3.4 Update Warehouse (Admin Only)
+PUT {{baseUrl}}/api/inventory/warehouses/{{warehouseId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "name": "Da Nang Central Warehouse",
+    "phone": "0236999999",
+    "isActive": true
+}
+
+
+###############################################################################
+# 4. INVENTORY MANAGEMENT (Seller/Admin)
+###############################################################################
+
+### 4.1 Get All Inventory Items
+GET {{baseUrl}}/api/inventory/stocks?warehouseId={{warehouseId}}&lowStock=true&page=1&pageSize=20
+Authorization: Bearer {{sellerToken}}
+
+### Query Parameters:
+# - warehouseId: Filter by warehouse
+# - lowStock: true = chỉ hiển thị hàng sắp hết
+# - page: default 1
+# - pageSize: default 20
+
+### Expected Response (200 OK):
+# {
+#     "items": [
+#         {
+#             "id": "uuid",
+#             "warehouseId": "uuid",
+#             "warehouseName": "Hanoi Warehouse",
+#             "productId": "uuid",
+#             "variantId": "uuid",
+#             "quantity": 10,
+#             "reserved": 2,
+#             "available": 8,
+#             "reorderLevel": 20,
+#             "reorderQuantity": 50,
+#             "isLowStock": true
+#         }
+#     ],
+#     "page": 1,
+#     "pageSize": 20,
+#     "totalCount": 15,
+#     "totalPages": 1
+# }
+
+
+###############################################################################
+
+### 4.2 Get Inventory Item by ID
+GET {{baseUrl}}/api/inventory/stocks/{{inventoryId}}
+Authorization: Bearer {{sellerToken}}
+
+
+###############################################################################
+
+### 4.3 Create Inventory Item (Seller/Admin)
+POST {{baseUrl}}/api/inventory/stocks
+Content-Type: application/json
+Authorization: Bearer {{sellerToken}}
+
+{
+    "warehouseId": "warehouse-uuid",
+    "productId": "product-uuid",
+    "variantId": "variant-uuid",
+    "quantity": 100,
+    "reorderLevel": 20,
+    "reorderQuantity": 50
+}
+
+### Expected Response (201 Created):
+# {
+#     "item": {
+#         "id": "new-uuid",
+#         ...
+#     },
+#     "message": "Inventory created"
+# }
+
+
+###############################################################################
+
+### 4.4 Update Inventory Item (Seller/Admin)
+PUT {{baseUrl}}/api/inventory/stocks/{{inventoryId}}
+Content-Type: application/json
+Authorization: Bearer {{sellerToken}}
+
+{
+    "quantity": 150,
+    "reorderLevel": 30,
+    "reorderQuantity": 100
+}
+
+
+###############################################################################
+
+### 4.5 Adjust Inventory (Manual Adjustment)
+# Tăng/giảm stock thủ công (với lý do)
+POST {{baseUrl}}/api/inventory/stocks/{{inventoryId}}/adjust
+Content-Type: application/json
+Authorization: Bearer {{sellerToken}}
+
+{
+    "quantityChange": -10,
+    "reason": "DAMAGED",
+    "notes": "Found 10 damaged units during inspection"
+}
+
+### Adjustment Reasons:
+# - DAMAGED: Hàng hỏng
+# - LOST: Hàng mất
+# - FOUND: Tìm thấy hàng (kiểm kê)
+# - INITIAL: Nhập kho lần đầu
+# - ADJUSTMENT: Điều chỉnh khác
+
+### Expected Response (200 OK):
+# {
+#     "item": {
+#         "id": "uuid",
+#         "quantity": 90,  // Updated
+#         ...
+#     },
+#     "message": "Inventory adjusted"
+# }
+
+
+###############################################################################
+# 5. STOCK TRANSFER (Admin)
+###############################################################################
+
+### 5.1 Transfer Stock Between Warehouses
+POST {{baseUrl}}/api/inventory/transfer
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "productId": "product-uuid",
+    "variantId": "variant-uuid",
+    "fromWarehouseId": "warehouse-1-uuid",
+    "toWarehouseId": "warehouse-2-uuid",
+    "quantity": 20,
+    "notes": "Transfer to Da Nang for promotion event"
+}
+
+### Expected Response (200 OK):
+# {
+#     "success": true,
+#     "message": "Stock transferred"
+# }
+
+
+###############################################################################
+# 6. LOW STOCK ALERTS (Admin/Seller)
+###############################################################################
+
+### 6.1 Get Low Stock Alerts
+GET {{baseUrl}}/api/inventory/alerts/low-stock?warehouseId={{warehouseId}}
+Authorization: Bearer {{sellerToken}}
+
+### Expected Response (200 OK):
+# {
+#     "items": [
+#         {
+#             "id": "uuid",
+#             "warehouseName": "Hanoi Warehouse",
+#             "productId": "uuid",
+#             "productName": "iPhone 15 Pro",
+#             "variantName": "256GB Black",
+#             "quantity": 5,
+#             "reorderLevel": 20,
+#             "reorderQuantity": 50,
+#             "available": 5
+#         }
+#     ],
+#     "total_low_stock_items": 10
+# }
+
+
+###############################################################################
+# 7. INTERNAL APIs (Background Jobs)
+###############################################################################
+
+### 7.1 Release Expired Reservations
+# Tự động hủy reservation đã hết hạn (15 phút)
+POST {{baseUrl}}/api/inventory/internal/release-expired
+
+### Expected Response (200 OK):
+# {
+#     "released_count": 5
+# }
+
+
+###############################################################################
+# 8. GATEWAY ROUTES
+###############################################################################
+
+### 8.1 Check Stock via Gateway
+GET {{gatewayUrl}}/api/inventory/products/{{productId}}/check
+
+### 8.2 Reserve Stock via Gateway (Internal)
+POST {{gatewayUrl}}/api/inventory/reserve
+Content-Type: application/json
+
+{
+    "orderId": "{{orderId}}",
+    "items": [...]
+}
+
+
+###############################################################################
+# API SUMMARY
+###############################################################################
+#
+# | Method | Endpoint                                    | Auth         | Description                  |
+# |--------|---------------------------------------------|--------------|------------------------------|
+# | **Public Stock Check** |
+# | GET    | /api/inventory/products/{id}/check          | ❌           | Check product stock          |
+# | POST   | /api/inventory/products                     | ❌           | Check multiple products      |
+# | **Stock Reservations** |
+# | POST   | /api/inventory/reserve                      | ❌           | Reserve stock                |
+# | POST   | /api/inventory/commit                       | ❌           | Commit reservation           |
+# | POST   | /api/inventory/release                      | ❌           | Release reservation          |
+# | POST   | /api/inventory/deduct                       | ❌           | Deduct stock directly        |
+# | POST   | /api/inventory/return                       | ❌           | Return stock                 |
+# | **Warehouses** |
+# | GET    | /api/inventory/warehouses                   | User         | Get all warehouses           |
+# | GET    | /api/inventory/warehouses/{id}              | User         | Get warehouse detail         |
+# | POST   | /api/inventory/warehouses                   | Admin        | Create warehouse             |
+# | PUT    | /api/inventory/warehouses/{id}              | Admin        | Update warehouse             |
+# | **Inventory Management** |
+# | GET    | /api/inventory/stocks                       | Seller/Admin | Get inventory items          |
+# | GET    | /api/inventory/stocks/{id}                  | Seller/Admin | Get inventory detail         |
+# | POST   | /api/inventory/stocks                       | Seller/Admin | Create inventory             |
+# | PUT    | /api/inventory/stocks/{id}                  | Seller/Admin | Update inventory             |
+# | POST   | /api/inventory/stocks/{id}/adjust           | Seller/Admin | Adjust inventory             |
+# | **Stock Transfer** |
+# | POST   | /api/inventory/transfer                     | Admin        | Transfer stock               |
+# | **Alerts** |
+# | GET    | /api/inventory/alerts/low-stock             | Seller/Admin | Get low stock alerts         |
+# | **Internal** |
+# | POST   | /api/inventory/internal/release-expired     | ❌           | Release expired reservations |
+#
+###############################################################################

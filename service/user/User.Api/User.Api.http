@@ -1,0 +1,501 @@
+###############################################################################
+#                         USER SERVICE API TESTING
+###############################################################################
+#
+# Base URLs:
+#   - Direct:  http://localhost:5001
+#   - Gateway: http://localhost:5010/api/users
+#
+# Note: Tất cả API đều yêu cầu JWT Authentication
+#
+###############################################################################
+
+@baseUrl = http://localhost:5001
+@gatewayUrl = http://localhost:5010
+
+# Variables - Thay bằng token thực sau khi login
+@accessToken = YOUR_JWT_TOKEN_HERE
+@addressId = YOUR_ADDRESS_ID
+@paymentMethodId = YOUR_PAYMENT_METHOD_ID
+@productId = YOUR_PRODUCT_ID
+
+
+###############################################################################
+# 1. USER PROFILE APIs
+###############################################################################
+
+### 1.1 Get My Profile
+# Lấy thông tin profile của user đang đăng nhập
+GET {{baseUrl}}/api/users/me/profile
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "id": "uuid",
+#     "userId": "uuid", 
+#     "phone": "0123456789",
+#     "dateOfBirth": "1990-01-01",
+#     "gender": "Male",
+#     "avatarUrl": "https://example.com/avatar.jpg",
+#     "bio": "Hello world",
+#     "createdAt": "2024-01-01T00:00:00Z",
+#     "updatedAt": "2024-01-01T00:00:00Z"
+# }
+
+### Error Response (404 Not Found):
+# Profile chưa được tạo
+
+
+###############################################################################
+
+### 1.2 Update My Profile
+# Tạo hoặc cập nhật profile
+PUT {{baseUrl}}/api/users/me/profile
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "phone": "0987654321",
+    "dateOfBirth": "1995-05-15",
+    "gender": "Male",
+    "avatarUrl": "https://example.com/my-avatar.jpg",
+    "bio": "I love shopping!"
+}
+
+### Expected Response (200 OK):
+# {
+#     "id": "uuid",
+#     "userId": "uuid",
+#     "phone": "0987654321",
+#     "dateOfBirth": "1995-05-15",
+#     "gender": "Male",
+#     "avatarUrl": "https://example.com/my-avatar.jpg",
+#     "bio": "I love shopping!",
+#     "createdAt": "...",
+#     "updatedAt": "..."
+# }
+
+
+###############################################################################
+
+### 1.3 Update Avatar
+# Cập nhật avatar URL
+POST {{baseUrl}}/api/users/me/avatar?avatarUrl=https://example.com/new-avatar.jpg
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "avatar_url": "https://example.com/new-avatar.jpg"
+# }
+
+
+###############################################################################
+# 2. USER ADDRESSES APIs
+###############################################################################
+
+### 2.1 Get All Addresses
+# Lấy danh sách địa chỉ của user
+GET {{baseUrl}}/api/users/me/addresses
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# [
+#     {
+#         "id": "uuid",
+#         "fullName": "Nguyen Van A",
+#         "phone": "0123456789",
+#         "addressLine1": "123 Main Street",
+#         "addressLine2": "Apt 4B",
+#         "city": "Ho Chi Minh",
+#         "stateProvince": "HCM",
+#         "postalCode": "700000",
+#         "country": "Vietnam",
+#         "isDefault": true,
+#         "addressType": "Home"
+#     }
+# ]
+
+
+###############################################################################
+
+### 2.2 Get Address by ID
+GET {{baseUrl}}/api/users/me/addresses/{{addressId}}
+Authorization: Bearer {{accessToken}}
+
+
+###############################################################################
+
+### 2.3 Create New Address
+POST {{baseUrl}}/api/users/me/addresses
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "fullName": "Nguyen Van A",
+    "phone": "0123456789",
+    "addressLine1": "123 Nguyen Hue Street",
+    "addressLine2": "Floor 5, Room 501",
+    "city": "Ho Chi Minh City",
+    "stateProvince": "District 1",
+    "postalCode": "700000",
+    "country": "Vietnam",
+    "isDefault": true,
+    "addressType": "Home"
+}
+
+### Expected Response (201 Created):
+# {
+#     "id": "new-address-uuid",
+#     ...
+# }
+
+### Address Types: "Home", "Office", "Other"
+
+
+###############################################################################
+
+### 2.4 Update Address
+PUT {{baseUrl}}/api/users/me/addresses/{{addressId}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "fullName": "Nguyen Van B",
+    "phone": "0987654321",
+    "addressLine1": "456 Le Loi Street",
+    "addressLine2": null,
+    "city": "Ha Noi",
+    "stateProvince": "Hoan Kiem",
+    "postalCode": "100000",
+    "country": "Vietnam",
+    "isDefault": false,
+    "addressType": "Office"
+}
+
+
+###############################################################################
+
+### 2.5 Delete Address
+DELETE {{baseUrl}}/api/users/me/addresses/{{addressId}}
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Address deleted successfully"
+# }
+
+
+###############################################################################
+
+### 2.6 Set Default Address
+PATCH {{baseUrl}}/api/users/me/addresses/{{addressId}}/set-default
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Default address updated"
+# }
+
+
+###############################################################################
+# 3. USER PAYMENT METHODS APIs
+###############################################################################
+
+### 3.1 Get All Payment Methods
+GET {{baseUrl}}/api/users/me/payment-methods
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# [
+#     {
+#         "id": "uuid",
+#         "paymentType": "CreditCard",
+#         "provider": "Visa",
+#         "cardNumber": "****1234",
+#         "cardHolderName": "NGUYEN VAN A",
+#         "expiryMonth": 12,
+#         "expiryYear": 2025,
+#         "billingAddressId": "uuid",
+#         "isDefault": true,
+#         "isActive": true
+#     }
+# ]
+
+
+###############################################################################
+
+### 3.2 Get Payment Method by ID
+GET {{baseUrl}}/api/users/me/payment-methods/{{paymentMethodId}}
+Authorization: Bearer {{accessToken}}
+
+
+###############################################################################
+
+### 3.3 Create Payment Method
+POST {{baseUrl}}/api/users/me/payment-methods
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "paymentType": "CreditCard",
+    "provider": "Visa",
+    "cardNumber": "4111111111111234",
+    "cardHolderName": "NGUYEN VAN A",
+    "expiryMonth": 12,
+    "expiryYear": 2026,
+    "cvv": "123",
+    "billingAddressId": null,
+    "isDefault": true
+}
+
+### Payment Types: "CreditCard", "DebitCard", "BankTransfer", "EWallet", "COD"
+### Providers: "Visa", "MasterCard", "Momo", "ZaloPay", "VNPay", etc.
+
+
+###############################################################################
+
+### 3.4 Update Payment Method
+PUT {{baseUrl}}/api/users/me/payment-methods/{{paymentMethodId}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "cardHolderName": "NGUYEN VAN B",
+    "expiryMonth": 6,
+    "expiryYear": 2027,
+    "billingAddressId": null,
+    "isDefault": true,
+    "isActive": true
+}
+
+
+###############################################################################
+
+### 3.5 Delete Payment Method
+DELETE {{baseUrl}}/api/users/me/payment-methods/{{paymentMethodId}}
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Payment method deleted successfully"
+# }
+
+
+###############################################################################
+
+### 3.6 Set Default Payment Method
+PATCH {{baseUrl}}/api/users/me/payment-methods/{{paymentMethodId}}/set-default
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Default payment method updated"
+# }
+
+
+###############################################################################
+# 4. USER PREFERENCES APIs
+###############################################################################
+
+### 4.1 Get My Preferences
+GET {{baseUrl}}/api/users/me/preferences
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "id": "uuid",
+#     "userId": "uuid",
+#     "language": "vi",
+#     "currency": "VND",
+#     "timezone": "Asia/Ho_Chi_Minh",
+#     "emailNotifications": true,
+#     "smsNotifications": false,
+#     "pushNotifications": true,
+#     "marketingEmails": false
+# }
+
+
+###############################################################################
+
+### 4.2 Update Preferences
+PUT {{baseUrl}}/api/users/me/preferences
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "language": "en",
+    "currency": "USD",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "emailNotifications": true,
+    "smsNotifications": true,
+    "pushNotifications": true,
+    "marketingEmails": false
+}
+
+
+###############################################################################
+# 5. USER WISHLIST APIs
+###############################################################################
+
+### 5.1 Get My Wishlist
+# Với phân trang
+GET {{baseUrl}}/api/users/me/wishlist?page=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "items": [
+#         {
+#             "id": "uuid",
+#             "productId": "product-uuid",
+#             "productName": "iPhone 15 Pro",
+#             "productImage": "https://...",
+#             "productPrice": 29990000,
+#             "addedAt": "2024-01-01T00:00:00Z"
+#         }
+#     ],
+#     "page": 1,
+#     "pageSize": 20,
+#     "totalCount": 5,
+#     "totalPages": 1
+# }
+
+
+###############################################################################
+
+### 5.2 Add to Wishlist
+POST {{baseUrl}}/api/users/me/wishlist
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "productId": "{{productId}}"
+}
+
+### Expected Response (201 Created):
+# {
+#     "id": "uuid",
+#     "productId": "product-uuid",
+#     "addedAt": "2024-01-01T00:00:00Z"
+# }
+
+### Error Response (400 Bad Request):
+# {
+#     "message": "Product already in wishlist"
+# }
+
+
+###############################################################################
+
+### 5.3 Remove from Wishlist
+DELETE {{baseUrl}}/api/users/me/wishlist/{{productId}}
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Product removed from wishlist"
+# }
+
+
+###############################################################################
+
+### 5.4 Check if Product in Wishlist
+GET {{baseUrl}}/api/users/me/wishlist/check/{{productId}}
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "is_in_wishlist": true
+# }
+
+
+###############################################################################
+# 6. USER ACTIVITY LOGS APIs
+###############################################################################
+
+### 6.1 Get My Activity Logs
+# Với phân trang và filter theo activity type
+GET {{baseUrl}}/api/users/me/activity-logs?page=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+
+### With activity type filter:
+# GET {{baseUrl}}/api/users/me/activity-logs?page=1&pageSize=20&activityType=login
+
+### Expected Response (200 OK):
+# {
+#     "items": [
+#         {
+#             "id": "uuid",
+#             "activityType": "login",
+#             "description": "User logged in",
+#             "ipAddress": "192.168.1.1",
+#             "userAgent": "Mozilla/5.0...",
+#             "createdAt": "2024-01-01T00:00:00Z"
+#         }
+#     ],
+#     "page": 1,
+#     "pageSize": 20,
+#     "totalCount": 100,
+#     "totalPages": 5
+# }
+
+
+###############################################################################
+# 7. GATEWAY ROUTES
+###############################################################################
+
+### 7.1 Get Profile via Gateway
+GET {{gatewayUrl}}/api/users/me/profile
+Authorization: Bearer {{accessToken}}
+
+### 7.2 Get Addresses via Gateway
+GET {{gatewayUrl}}/api/users/me/addresses
+Authorization: Bearer {{accessToken}}
+
+### 7.3 Get Wishlist via Gateway
+GET {{gatewayUrl}}/api/users/me/wishlist
+Authorization: Bearer {{accessToken}}
+
+
+###############################################################################
+# API SUMMARY TABLE
+###############################################################################
+#
+# | Method | Endpoint                                    | Auth | Description                |
+# |--------|---------------------------------------------|------|----------------------------|
+# | GET    | /api/users/me/profile                       | ✅   | Get my profile             |
+# | PUT    | /api/users/me/profile                       | ✅   | Update my profile          |
+# | POST   | /api/users/me/avatar                        | ✅   | Update avatar              |
+# | GET    | /api/users/me/addresses                     | ✅   | Get all addresses          |
+# | GET    | /api/users/me/addresses/{id}                | ✅   | Get address by ID          |
+# | POST   | /api/users/me/addresses                     | ✅   | Create address             |
+# | PUT    | /api/users/me/addresses/{id}                | ✅   | Update address             |
+# | DELETE | /api/users/me/addresses/{id}                | ✅   | Delete address             |
+# | PATCH  | /api/users/me/addresses/{id}/set-default    | ✅   | Set default address        |
+# | GET    | /api/users/me/payment-methods               | ✅   | Get all payment methods    |
+# | GET    | /api/users/me/payment-methods/{id}          | ✅   | Get payment method         |
+# | POST   | /api/users/me/payment-methods               | ✅   | Create payment method      |
+# | PUT    | /api/users/me/payment-methods/{id}          | ✅   | Update payment method      |
+# | DELETE | /api/users/me/payment-methods/{id}          | ✅   | Delete payment method      |
+# | PATCH  | /api/users/me/payment-methods/{id}/set-default | ✅ | Set default payment        |
+# | GET    | /api/users/me/preferences                   | ✅   | Get preferences            |
+# | PUT    | /api/users/me/preferences                   | ✅   | Update preferences         |
+# | GET    | /api/users/me/wishlist                      | ✅   | Get wishlist               |
+# | POST   | /api/users/me/wishlist                      | ✅   | Add to wishlist            |
+# | DELETE | /api/users/me/wishlist/{productId}          | ✅   | Remove from wishlist       |
+# | GET    | /api/users/me/wishlist/check/{productId}    | ✅   | Check if in wishlist       |
+# | GET    | /api/users/me/activity-logs                 | ✅   | Get activity logs          |
+#
+###############################################################################
+# QUICK TEST FLOW
+###############################################################################
+#
+# 1. Login ở Auth service → Lấy access_token
+# 2. Thay @accessToken bằng token thực
+# 3. Update Profile (1.2) → Tạo profile
+# 4. Create Address (2.3) → Lấy addressId
+# 5. Create Payment Method (3.3) → Lấy paymentMethodId  
+# 6. Update Preferences (4.2)
+# 7. Add to Wishlist (5.2) với productId thực
+#
+###############################################################################

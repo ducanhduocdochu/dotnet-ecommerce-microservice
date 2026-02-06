@@ -1,0 +1,167 @@
+-- User Service API Endpoints
+-- Base URL: /api/users
+
+-- ============================================
+-- User Profile APIs
+-- ============================================
+
+-- Get current user profile
+GET /api/users/me/profile
+Headers: Authorization: Bearer {token}
+Response: { id, user_id, phone, date_of_birth, gender, avatar_url, bio, created_at, updated_at }
+
+-- Get user profile by ID (Admin only)
+GET /api/users/{userId}/profile
+Headers: Authorization: Bearer {token}
+Response: { id, user_id, phone, date_of_birth, gender, avatar_url, bio, created_at, updated_at }
+
+-- Create or update user profile
+PUT /api/users/me/profile
+Headers: Authorization: Bearer {token}
+Body: { phone, date_of_birth, gender, avatar_url, bio }
+Response: { id, user_id, phone, date_of_birth, gender, avatar_url, bio, created_at, updated_at }
+
+-- Upload avatar
+POST /api/users/me/avatar
+Headers: Authorization: Bearer {token}
+Body: FormData with image file
+Response: { avatar_url }
+
+-- ============================================
+-- User Addresses APIs
+-- ============================================
+
+-- Get all addresses of current user
+GET /api/users/me/addresses
+Headers: Authorization: Bearer {token}
+Response: [{ id, user_id, full_name, phone, address_line1, address_line2, city, state_province, postal_code, country, is_default, address_type, created_at, updated_at }]
+
+-- Get address by ID
+GET /api/users/me/addresses/{addressId}
+Headers: Authorization: Bearer {token}
+Response: { id, user_id, full_name, phone, address_line1, address_line2, city, state_province, postal_code, country, is_default, address_type, created_at, updated_at }
+
+-- Create new address
+POST /api/users/me/addresses
+Headers: Authorization: Bearer {token}
+Body: { full_name, phone, address_line1, address_line2, city, state_province, postal_code, country, is_default, address_type }
+Response: { id, user_id, full_name, phone, address_line1, address_line2, city, state_province, postal_code, country, is_default, address_type, created_at, updated_at }
+
+-- Update address
+PUT /api/users/me/addresses/{addressId}
+Headers: Authorization: Bearer {token}
+Body: { full_name, phone, address_line1, address_line2, city, state_province, postal_code, country, is_default, address_type }
+Response: { id, user_id, full_name, phone, address_line1, address_line2, city, state_province, postal_code, country, is_default, address_type, created_at, updated_at }
+
+-- Delete address
+DELETE /api/users/me/addresses/{addressId}
+Headers: Authorization: Bearer {token}
+Response: { message: "Address deleted successfully" }
+
+-- Set default address
+PATCH /api/users/me/addresses/{addressId}/set-default
+Headers: Authorization: Bearer {token}
+Response: { message: "Default address updated" }
+
+-- ============================================
+-- User Payment Methods APIs
+-- ============================================
+
+-- Get all payment methods of current user
+GET /api/users/me/payment-methods
+Headers: Authorization: Bearer {token}
+Response: [{ id, user_id, payment_type, provider, card_last_four, card_holder_name, expiry_month, expiry_year, is_default, is_active, billing_address_id, created_at, updated_at }]
+
+-- Get payment method by ID
+GET /api/users/me/payment-methods/{paymentMethodId}
+Headers: Authorization: Bearer {token}
+Response: { id, user_id, payment_type, provider, card_last_four, card_holder_name, expiry_month, expiry_year, is_default, is_active, billing_address_id, created_at, updated_at }
+
+-- Add payment method
+POST /api/users/me/payment-methods
+Headers: Authorization: Bearer {token}
+Body: { payment_type, provider, card_number, card_holder_name, expiry_month, expiry_year, cvv, billing_address_id, is_default }
+Response: { id, user_id, payment_type, provider, card_last_four, card_holder_name, expiry_month, expiry_year, is_default, is_active, billing_address_id, created_at, updated_at }
+
+-- Update payment method
+PUT /api/users/me/payment-methods/{paymentMethodId}
+Headers: Authorization: Bearer {token}
+Body: { card_holder_name, expiry_month, expiry_year, billing_address_id, is_default, is_active }
+Response: { id, user_id, payment_type, provider, card_last_four, card_holder_name, expiry_month, expiry_year, is_default, is_active, billing_address_id, created_at, updated_at }
+
+-- Delete payment method
+DELETE /api/users/me/payment-methods/{paymentMethodId}
+Headers: Authorization: Bearer {token}
+Response: { message: "Payment method deleted successfully" }
+
+-- Set default payment method
+PATCH /api/users/me/payment-methods/{paymentMethodId}/set-default
+Headers: Authorization: Bearer {token}
+Response: { message: "Default payment method updated" }
+
+-- ============================================
+-- User Preferences APIs
+-- ============================================
+
+-- Get user preferences
+GET /api/users/me/preferences
+Headers: Authorization: Bearer {token}
+Response: { id, user_id, language, currency, timezone, email_notifications, sms_notifications, push_notifications, marketing_emails, created_at, updated_at }
+
+-- Update user preferences
+PUT /api/users/me/preferences
+Headers: Authorization: Bearer {token}
+Body: { language, currency, timezone, email_notifications, sms_notifications, push_notifications, marketing_emails }
+Response: { id, user_id, language, currency, timezone, email_notifications, sms_notifications, push_notifications, marketing_emails, created_at, updated_at }
+
+-- ============================================
+-- User Wishlist APIs
+-- ============================================
+
+-- Get user wishlist
+GET /api/users/me/wishlist
+Headers: Authorization: Bearer {token}
+Query: ?page=1&pageSize=20
+Response: { items: [{ id, user_id, product_id, created_at }], total, page, pageSize }
+
+-- Add product to wishlist
+POST /api/users/me/wishlist
+Headers: Authorization: Bearer {token}
+Body: { product_id }
+Response: { id, user_id, product_id, created_at }
+
+-- Remove product from wishlist
+DELETE /api/users/me/wishlist/{productId}
+Headers: Authorization: Bearer {token}
+Response: { message: "Product removed from wishlist" }
+
+-- Check if product is in wishlist
+GET /api/users/me/wishlist/check/{productId}
+Headers: Authorization: Bearer {token}
+Response: { is_in_wishlist: true/false }
+
+-- ============================================
+-- User Activity Logs APIs (Optional)
+-- ============================================
+
+-- Get user activity logs
+GET /api/users/me/activity-logs
+Headers: Authorization: Bearer {token}
+Query: ?page=1&pageSize=20&activityType=LOGIN
+Response: { items: [{ id, user_id, activity_type, activity_data, ip_address, user_agent, created_at }], total, page, pageSize }
+
+-- ============================================
+-- Admin APIs (Admin only)
+-- ============================================
+
+-- Get all users (with pagination)
+GET /api/users
+Headers: Authorization: Bearer {token}
+Query: ?page=1&pageSize=20&search=email
+Response: { items: [{ user_id, email, full_name, ... }], total, page, pageSize }
+
+-- Get user by ID (Admin)
+GET /api/users/{userId}
+Headers: Authorization: Bearer {token}
+Response: { user_id, email, full_name, profile, addresses, payment_methods, preferences }
+

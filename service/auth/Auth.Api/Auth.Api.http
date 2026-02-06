@@ -1,0 +1,409 @@
+###############################################################################
+#                         AUTH SERVICE API TESTING
+###############################################################################
+#
+# Base URLs:
+#   - Direct:  http://localhost:5000
+#   - Gateway: http://localhost:5010/api/auth
+#
+# JWT Secret: ducanhdeptrai123_ducanhdeptrai123
+#
+###############################################################################
+
+@baseUrl = http://localhost:5000
+@gatewayUrl = http://localhost:5010/api
+
+# Variables (will be updated after login)
+@accessToken = {{login.response.body.access_token}}
+@refreshToken = {{login.response.body.refresh_token}}
+@userId = {{register.response.body.id}}
+@roleId = {{createRole.response.body.id}}
+
+
+###############################################################################
+# 1. AUTHENTICATION APIs (Public)
+###############################################################################
+
+### 1.1 Register new user
+# @name register
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+    "email": "test@example.com",
+    "password": "Password123!",
+    "fullName": "Test User"
+}
+
+### Expected Response (200 OK):
+# {
+#     "id": "550e8400-e29b-41d4-a716-446655440000",
+#     "email": "test@example.com",
+#     "fullName": "Test User"
+# }
+
+### Error Response (400 Bad Request):
+# {
+#     "message": "Email already exists"
+# }
+
+
+###############################################################################
+
+### 1.2 Login
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "test@example.com",
+    "password": "Password123!"
+}
+
+### Expected Response (200 OK):
+# {
+#     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+#     "refresh_token": "abc123..."
+# }
+
+### Error Response (401 Unauthorized):
+# (empty body)
+
+
+###############################################################################
+
+### 1.3 Refresh Token
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+    "refreshToken": "{{refreshToken}}"
+}
+
+### Expected Response (200 OK):
+# {
+#     "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+#     "refresh_token": "new_refresh_token..."
+# }
+
+
+###############################################################################
+
+### 1.4 Logout
+POST {{baseUrl}}/auth/logout
+Content-Type: application/json
+
+{
+    "refreshToken": "{{refreshToken}}"
+}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Logged out successfully"
+# }
+
+### Error Response (400 Bad Request):
+# {
+#     "message": "Invalid refresh token"
+# }
+
+
+###############################################################################
+# 2. EMAIL VERIFICATION APIs (Public)
+###############################################################################
+
+### 2.1 Send Verification Email
+POST {{baseUrl}}/auth/send-verification-email
+Content-Type: application/json
+
+{
+    "email": "test@example.com"
+}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Verification email sent successfully"
+# }
+
+### Error Response (400 Bad Request):
+# {
+#     "message": "User not found or failed to send email"
+# }
+
+
+###############################################################################
+
+### 2.2 Verify Email
+POST {{baseUrl}}/auth/verify-email
+Content-Type: application/json
+
+{
+    "token": "verification-token-from-email"
+}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Email verified successfully. Your account has been activated."
+# }
+
+### Error Response (400 Bad Request):
+# {
+#     "message": "Invalid or expired verification token"
+# }
+
+
+###############################################################################
+# 3. USER INFO APIs (Requires Authentication)
+###############################################################################
+
+### 3.1 Get Current User Info
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "id": "550e8400-e29b-41d4-a716-446655440000",
+#     "email": "test@example.com",
+#     "fullName": "Test User",
+#     "isActive": true,
+#     "createdAt": "2024-01-01T00:00:00Z"
+# }
+
+### Error Response (401 Unauthorized):
+# (empty body - no or invalid token)
+
+
+###############################################################################
+
+### 3.2 Get User Permissions/Roles
+GET {{baseUrl}}/auth/permissions
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "id": "550e8400-e29b-41d4-a716-446655440000",
+#     "email": "test@example.com",
+#     "roles": [
+#         {
+#             "id": "role-id-1",
+#             "name": "Admin",
+#             "description": "Administrator role"
+#         }
+#     ]
+# }
+
+
+###############################################################################
+# 4. ROLE MANAGEMENT APIs (Requires Authentication)
+###############################################################################
+
+### 4.1 Get All Roles (Authenticated users)
+GET {{baseUrl}}/roles
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# [
+#     {
+#         "id": "role-id-1",
+#         "name": "Admin",
+#         "description": "Administrator role"
+#     },
+#     {
+#         "id": "role-id-2",
+#         "name": "Seller",
+#         "description": "Seller role"
+#     }
+# ]
+
+
+###############################################################################
+
+### 4.2 Create Role (Admin Only)
+# @name createRole
+POST {{baseUrl}}/roles
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "name": "Manager",
+    "description": "Manager role with limited admin access"
+}
+
+### Expected Response (201 Created):
+# {
+#     "id": "new-role-id",
+#     "name": "Manager",
+#     "description": "Manager role with limited admin access"
+# }
+
+### Error Response (400 Bad Request):
+# {
+#     "message": "Role already exists"
+# }
+
+### Error Response (403 Forbidden):
+# (User doesn't have Admin role)
+
+
+###############################################################################
+
+### 4.3 Update Role (Admin Only)
+PUT {{baseUrl}}/roles/{{roleId}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "name": "Senior Manager",
+    "description": "Senior Manager role with extended permissions"
+}
+
+### Expected Response (200 OK):
+# {
+#     "id": "role-id",
+#     "name": "Senior Manager",
+#     "description": "Senior Manager role with extended permissions"
+# }
+
+### Error Response (404 Not Found):
+# {
+#     "message": "Role not found"
+# }
+
+
+###############################################################################
+
+### 4.4 Delete Role (Admin Only)
+DELETE {{baseUrl}}/roles/{{roleId}}
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Role deleted successfully"
+# }
+
+### Error Response (404 Not Found):
+# {
+#     "message": "Role not found"
+# }
+
+
+###############################################################################
+# 5. USER-ROLE MANAGEMENT APIs (Admin Only)
+###############################################################################
+
+### 5.1 Assign Role to User
+POST {{baseUrl}}/user-roles
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "userId": "{{userId}}",
+    "roleId": "{{roleId}}"
+}
+
+### Expected Response (201 Created):
+# {
+#     "id": "user-role-id",
+#     "userId": "user-id",
+#     "roleId": "role-id"
+# }
+
+### Error Response (400 Bad Request):
+# {
+#     "message": "User already has this role"
+# }
+
+### Error Response (404 Not Found):
+# {
+#     "message": "User not found"
+# }
+# OR
+# {
+#     "message": "Role not found"
+# }
+
+
+###############################################################################
+
+### 5.2 Remove Role from User
+DELETE {{baseUrl}}/user-roles/{{userId}}/{{roleId}}
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Role removed from user"
+# }
+
+### Error Response (404 Not Found):
+# {
+#     "message": "User role not found"
+# }
+
+
+###############################################################################
+# 6. GATEWAY ROUTES (Through API Gateway)
+###############################################################################
+
+### 6.1 Register via Gateway
+POST {{gatewayUrl}}/auth/register
+Content-Type: application/json
+
+{
+    "email": "gateway-test@example.com",
+    "password": "Password123!",
+    "fullName": "Gateway Test User"
+}
+
+
+###############################################################################
+
+### 6.2 Login via Gateway
+POST {{gatewayUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "gateway-test@example.com",
+    "password": "Password123!"
+}
+
+
+###############################################################################
+
+### 6.3 Get Current User via Gateway
+GET {{gatewayUrl}}/auth/me
+Authorization: Bearer {{accessToken}}
+
+
+###############################################################################
+# API SUMMARY TABLE
+###############################################################################
+#
+# | Method | Endpoint                        | Auth Required | Admin Only | Description                    |
+# |--------|--------------------------------|---------------|------------|--------------------------------|
+# | POST   | /auth/register                 | ❌            | ❌         | Register new user              |
+# | POST   | /auth/login                    | ❌            | ❌         | Login and get tokens           |
+# | POST   | /auth/refresh                  | ❌            | ❌         | Refresh access token           |
+# | POST   | /auth/logout                   | ❌            | ❌         | Logout (invalidate token)      |
+# | POST   | /auth/send-verification-email  | ❌            | ❌         | Send email verification        |
+# | POST   | /auth/verify-email             | ❌            | ❌         | Verify email with token        |
+# | GET    | /auth/me                       | ✅            | ❌         | Get current user info          |
+# | GET    | /auth/permissions              | ✅            | ❌         | Get user roles/permissions     |
+# | GET    | /roles                         | ✅            | ❌         | List all roles                 |
+# | POST   | /roles                         | ✅            | ✅         | Create new role                |
+# | PUT    | /roles/{id}                    | ✅            | ✅         | Update role                    |
+# | DELETE | /roles/{id}                    | ✅            | ✅         | Delete role                    |
+# | POST   | /user-roles                    | ✅            | ✅         | Assign role to user            |
+# | DELETE | /user-roles/{userId}/{roleId}  | ✅            | ✅         | Remove role from user          |
+#
+###############################################################################
+# QUICK TEST FLOW
+###############################################################################
+#
+# 1. Run Register (1.1) → Save userId
+# 2. Run Login (1.2) → Save accessToken, refreshToken
+# 3. Run Get Me (3.1) → Verify user info
+# 4. Run Create Role (4.2) with Admin token → Save roleId
+# 5. Run Assign Role (5.1) → Assign role to user
+# 6. Run Get Permissions (3.2) → Verify role assigned
+#
+###############################################################################

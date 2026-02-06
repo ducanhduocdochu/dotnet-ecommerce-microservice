@@ -1,0 +1,347 @@
+-- ============================================
+-- DISCOUNT SERVICE API ENDPOINTS
+-- ============================================
+-- Base URL: /api/discounts (via Gateway: /api/discounts)
+-- Port: 5006
+-- ============================================
+
+-- ============================================
+-- PUBLIC APIs (Customer)
+-- ============================================
+
+-- Get active public discounts
+GET /api/discounts
+Query: ?page=1&pageSize=10
+Response: {
+    items: [{
+        id, code, name, description, type, value, max_discount_amount,
+        min_order_amount, start_date, end_date
+    }],
+    total, page, pageSize
+}
+
+-- Validate discount code
+POST /api/discounts/validate
+Headers: Authorization: Bearer {token}
+Body: {
+    code,
+    order_amount,
+    items: [{
+        product_id,
+        category_id,
+        quantity,
+        price
+    }]
+}
+Response: {
+    valid: true/false,
+    discount: { id, code, name, type, value },
+    discount_amount,
+    message: "Discount applied" | "Invalid code" | "Minimum order not met"
+}
+
+-- Apply discount to order (called by Order service)
+POST /api/discounts/apply
+Headers: Authorization: Bearer {token}
+Body: {
+    code,
+    order_id,
+    order_number,
+    order_amount,
+    items: [{ product_id, category_id, quantity, price }]
+}
+Response: {
+    success: true,
+    discount_id,
+    discount_amount,
+    message: "Discount applied successfully"
+}
+
+-- Get user's available discounts
+GET /api/discounts/me
+Headers: Authorization: Bearer {token}
+Response: {
+    items: [{
+        id, code, name, description, type, value,
+        min_order_amount, end_date, usage_remaining
+    }]
+}
+
+-- ============================================
+-- PROMOTION APIs (Public)
+-- ============================================
+
+-- Get active promotions
+GET /api/discounts/promotions
+Response: {
+    items: [{
+        id, code, name, description, banner_url, thumbnail_url,
+        start_date, end_date, discounts: [...]
+    }]
+}
+
+-- Get promotion detail
+GET /api/discounts/promotions/{id}
+Response: {
+    id, code, name, description, banner_url,
+    start_date, end_date,
+    discounts: [{ id, code, name, type, value, ... }]
+}
+
+-- ============================================
+-- FLASH SALE APIs (Public)
+-- ============================================
+
+-- Get active flash sales
+GET /api/discounts/flash-sales
+Response: {
+    items: [{
+        id, name, start_time, end_time,
+        items: [{
+            product_id, original_price, sale_price, discount_percent,
+            quantity_limit, quantity_sold, quantity_remaining
+        }]
+    }]
+}
+
+-- Get flash sale detail
+GET /api/discounts/flash-sales/{id}
+Response: {
+    id, name, start_time, end_time, is_active,
+    items: [{ product_id, variant_id, original_price, sale_price, ... }]
+}
+
+-- Check flash sale item availability
+GET /api/discounts/flash-sales/{id}/items/{productId}
+Query: ?variant_id=xxx
+Response: {
+    available: true/false,
+    quantity_remaining,
+    sale_price,
+    limit_per_user
+}
+
+-- ============================================
+-- ADMIN APIs - Discount Management
+-- ============================================
+
+-- Get all discounts
+GET /api/discounts/admin
+Headers: Authorization: Bearer {token}
+Query: ?page=1&pageSize=20&type=PERCENTAGE&is_active=true&search=SALE
+Response: { items: [...], total, page, pageSize }
+
+-- Get discount detail
+GET /api/discounts/admin/{id}
+Headers: Authorization: Bearer {token}
+Response: {
+    id, code, name, description, type, value, max_discount_amount,
+    min_order_amount, min_quantity, usage_limit, usage_limit_per_user, usage_count,
+    start_date, end_date, scope, is_active, is_public, is_stackable,
+    products: [{ product_id }],
+    categories: [{ category_id }],
+    users: [{ user_id }],
+    recent_usages: [{ user_id, order_id, discount_amount, created_at }]
+}
+
+-- Create discount
+POST /api/discounts/admin
+Headers: Authorization: Bearer {token}
+Body: {
+    code,
+    name,
+    description?,
+    type: "PERCENTAGE" | "FIXED_AMOUNT" | "FREE_SHIPPING" | "BUY_X_GET_Y",
+    value,
+    max_discount_amount?,
+    min_order_amount?,
+    min_quantity?,
+    buy_quantity?,           // For BUY_X_GET_Y
+    get_quantity?,
+    get_discount_percent?,
+    usage_limit?,
+    usage_limit_per_user?,
+    start_date,
+    end_date,
+    scope?: "ALL" | "SPECIFIC_PRODUCTS" | "SPECIFIC_CATEGORIES" | "SPECIFIC_USERS",
+    product_ids?: [],
+    category_ids?: [],
+    user_ids?: [],
+    is_active?,
+    is_public?,
+    is_stackable?,
+    priority?
+}
+Response: { id, code, message: "Discount created" }
+
+-- Update discount
+PUT /api/discounts/admin/{id}
+Headers: Authorization: Bearer {token}
+Body: { name?, description?, value?, ... }
+Response: { id, message: "Discount updated" }
+
+-- Delete discount
+DELETE /api/discounts/admin/{id}
+Headers: Authorization: Bearer {token}
+Response: { message: "Discount deleted" }
+
+-- Toggle discount status
+PUT /api/discounts/admin/{id}/toggle
+Headers: Authorization: Bearer {token}
+Response: { id, is_active, message: "Discount status updated" }
+
+-- Get discount usage statistics
+GET /api/discounts/admin/{id}/statistics
+Headers: Authorization: Bearer {token}
+Response: {
+    total_usage,
+    total_discount_amount,
+    unique_users,
+    usage_by_date: [{ date, count, amount }]
+}
+
+-- ============================================
+-- ADMIN APIs - Promotion Management
+-- ============================================
+
+-- Get all promotions
+GET /api/discounts/admin/promotions
+Headers: Authorization: Bearer {token}
+Query: ?page=1&pageSize=10&is_active=true
+Response: { items: [...], total, page, pageSize }
+
+-- Create promotion
+POST /api/discounts/admin/promotions
+Headers: Authorization: Bearer {token}
+Body: {
+    code,
+    name,
+    description?,
+    banner_url?,
+    thumbnail_url?,
+    start_date,
+    end_date,
+    is_featured?,
+    discount_ids: []
+}
+Response: { id, code, message: "Promotion created" }
+
+-- Update promotion
+PUT /api/discounts/admin/promotions/{id}
+Headers: Authorization: Bearer {token}
+Body: { name?, banner_url?, discount_ids?, ... }
+Response: { id, message: "Promotion updated" }
+
+-- Delete promotion
+DELETE /api/discounts/admin/promotions/{id}
+Headers: Authorization: Bearer {token}
+Response: { message: "Promotion deleted" }
+
+-- ============================================
+-- ADMIN APIs - Flash Sale Management
+-- ============================================
+
+-- Get all flash sales
+GET /api/discounts/admin/flash-sales
+Headers: Authorization: Bearer {token}
+Query: ?page=1&pageSize=10
+Response: { items: [...], total, page, pageSize }
+
+-- Create flash sale
+POST /api/discounts/admin/flash-sales
+Headers: Authorization: Bearer {token}
+Body: {
+    name,
+    start_time,
+    end_time,
+    items: [{
+        product_id,
+        variant_id?,
+        original_price,
+        sale_price,
+        quantity_limit,
+        limit_per_user?
+    }]
+}
+Response: { id, message: "Flash sale created" }
+
+-- Update flash sale
+PUT /api/discounts/admin/flash-sales/{id}
+Headers: Authorization: Bearer {token}
+Body: { name?, start_time?, end_time?, is_active? }
+Response: { id, message: "Flash sale updated" }
+
+-- Add item to flash sale
+POST /api/discounts/admin/flash-sales/{id}/items
+Headers: Authorization: Bearer {token}
+Body: { product_id, variant_id?, original_price, sale_price, quantity_limit }
+Response: { id, message: "Item added to flash sale" }
+
+-- Update flash sale item
+PUT /api/discounts/admin/flash-sales/{id}/items/{itemId}
+Headers: Authorization: Bearer {token}
+Body: { sale_price?, quantity_limit?, limit_per_user? }
+Response: { id, message: "Flash sale item updated" }
+
+-- Delete flash sale item
+DELETE /api/discounts/admin/flash-sales/{id}/items/{itemId}
+Headers: Authorization: Bearer {token}
+Response: { message: "Item removed from flash sale" }
+
+-- ============================================
+-- INTERNAL APIs (for service-to-service)
+-- ============================================
+
+-- Record discount usage (called by Order service after order confirmed)
+POST /api/discounts/internal/record-usage
+Body: {
+    discount_id,
+    user_id,
+    order_id,
+    order_number,
+    order_amount,
+    discount_amount
+}
+Response: { success: true }
+
+-- Rollback discount usage (called when order cancelled)
+POST /api/discounts/internal/rollback-usage
+Body: { order_id }
+Response: { success: true }
+
+-- Get discounts for products (for Product service)
+POST /api/discounts/internal/products
+Body: { product_ids: [] }
+Response: {
+    items: [{
+        product_id,
+        discounts: [{ code, type, value, end_date }]
+    }]
+}
+
+-- ============================================
+-- DISCOUNT CALCULATION EXAMPLES
+-- ============================================
+--
+-- PERCENTAGE (10%):
+--   order_amount = 500,000
+--   discount = 500,000 * 10% = 50,000
+--   max_discount_amount = 30,000
+--   final_discount = min(50,000, 30,000) = 30,000
+--
+-- FIXED_AMOUNT (50K):
+--   order_amount = 500,000
+--   min_order_amount = 300,000 ✓
+--   discount = 50,000
+--
+-- FREE_SHIPPING:
+--   shipping_fee = 30,000
+--   discount = 30,000 (applied to shipping)
+--
+-- BUY_X_GET_Y (Mua 2 tặng 1):
+--   buy_quantity = 2, get_quantity = 1, get_discount_percent = 100
+--   Cart: 3 items x 100,000 = 300,000
+--   Discount = 1 item free = 100,000
+--
+-- ============================================
+

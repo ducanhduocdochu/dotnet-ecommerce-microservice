@@ -1,0 +1,250 @@
+-- ============================================
+-- PAYMENT SERVICE DATABASE SCHEMA
+-- ============================================
+-- Database: payment_db (PostgreSQL)
+-- Service: Payment Processing
+-- Port: 5004
+-- ============================================
+
+-- ============================================
+-- TABLES
+-- ============================================
+
+-- 1. Payment Transactions (Giao dịch thanh toán)
+CREATE TABLE payment_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    transaction_code VARCHAR(50) UNIQUE NOT NULL,   -- PAY-20241129-XXXX
+    
+    -- Order Reference
+    order_id UUID NOT NULL,                         -- Reference to Order service
+    order_number VARCHAR(50) NOT NULL,
+    
+    -- User Info
+    user_id UUID NOT NULL,
+    user_email VARCHAR(255),
+    user_phone VARCHAR(50),
+    
+    -- Amount
+    amount DECIMAL(15,2) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'VND',
+    
+    -- Payment Info
+    payment_method VARCHAR(50) NOT NULL,            -- COD, BANK_TRANSFER, CREDIT_CARD, DEBIT_CARD, E_WALLET
+    payment_gateway VARCHAR(50),                    -- VNPAY, MOMO, ZALOPAY, STRIPE, etc.
+    
+    -- Status
+    status VARCHAR(50) DEFAULT 'PENDING',           -- PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED, REFUNDED
+    
+    -- Gateway Response
+    gateway_transaction_id VARCHAR(255),            -- ID from payment gateway
+    gateway_response_code VARCHAR(50),
+    gateway_response_message TEXT,
+    gateway_response_data JSONB,                    -- Full response from gateway
+    
+    -- Payment URL (for online payments)
+    payment_url TEXT,
+    return_url TEXT,
+    callback_url TEXT,
+    
+    -- Timestamps
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    paid_at TIMESTAMP,
+    expired_at TIMESTAMP,                           -- Payment link expiration
+    
+    -- Metadata
+    ip_address VARCHAR(50),
+    user_agent TEXT,
+    description TEXT
+);
+
+CREATE INDEX idx_payment_transactions_order_id ON payment_transactions(order_id);
+CREATE INDEX idx_payment_transactions_user_id ON payment_transactions(user_id);
+CREATE INDEX idx_payment_transactions_status ON payment_transactions(status);
+CREATE INDEX idx_payment_transactions_code ON payment_transactions(transaction_code);
+CREATE INDEX idx_payment_transactions_created_at ON payment_transactions(created_at DESC);
+
+-- 2. Payment Methods (Phương thức thanh toán đã lưu)
+CREATE TABLE payment_methods (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    
+    type VARCHAR(50) NOT NULL,                      -- CREDIT_CARD, DEBIT_CARD, BANK_ACCOUNT, E_WALLET
+    provider VARCHAR(50),                           -- VISA, MASTERCARD, MOMO, ZALOPAY, etc.
+    
+    -- Card Info (encrypted/tokenized)
+    card_token VARCHAR(255),                        -- Token from payment gateway
+    card_last4 VARCHAR(4),
+    card_brand VARCHAR(50),                         -- VISA, MASTERCARD, JCB, etc.
+    card_exp_month INT,
+    card_exp_year INT,
+    card_holder_name VARCHAR(255),
+    
+    -- Bank Account Info
+    bank_code VARCHAR(50),
+    bank_name VARCHAR(255),
+    account_number_masked VARCHAR(50),              -- ****1234
+    account_holder_name VARCHAR(255),
+    
+    -- E-Wallet Info
+    wallet_id VARCHAR(255),
+    wallet_phone VARCHAR(50),
+    
+    -- Metadata
+    is_default BOOLEAN DEFAULT FALSE,
+    is_verified BOOLEAN DEFAULT FALSE,
+    nickname VARCHAR(100),                          -- "My Visa Card", "Main Bank"
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(user_id, card_token),
+    UNIQUE(user_id, wallet_id)
+);
+
+CREATE INDEX idx_payment_methods_user_id ON payment_methods(user_id);
+
+-- 3. Refund Transactions (Giao dịch hoàn tiền)
+CREATE TABLE refund_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    refund_code VARCHAR(50) UNIQUE NOT NULL,        -- REF-20241129-XXXX
+    
+    -- Original Transaction
+    payment_transaction_id UUID NOT NULL REFERENCES payment_transactions(id),
+    order_id UUID NOT NULL,
+    order_refund_id UUID,                           -- Reference to Order service refund
+    
+    -- User Info
+    user_id UUID NOT NULL,
+    
+    -- Amount
+    amount DECIMAL(15,2) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'VND',
+    
+    -- Refund Method
+    refund_method VARCHAR(50) NOT NULL,             -- ORIGINAL_PAYMENT, BANK_TRANSFER, WALLET
+    
+    -- Bank Transfer Info (if applicable)
+    bank_code VARCHAR(50),
+    bank_name VARCHAR(255),
+    bank_account VARCHAR(50),
+    bank_account_name VARCHAR(255),
+    
+    -- Status
+    status VARCHAR(50) DEFAULT 'PENDING',           -- PENDING, PROCESSING, COMPLETED, FAILED
+    
+    -- Gateway Response
+    gateway_refund_id VARCHAR(255),
+    gateway_response_code VARCHAR(50),
+    gateway_response_message TEXT,
+    gateway_response_data JSONB,
+    
+    -- Reason & Notes
+    reason TEXT NOT NULL,
+    admin_note TEXT,
+    
+    -- Processed By
+    processed_by UUID,
+    processed_by_name VARCHAR(255),
+    
+    -- Timestamps
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP
+);
+
+CREATE INDEX idx_refund_transactions_payment_id ON refund_transactions(payment_transaction_id);
+CREATE INDEX idx_refund_transactions_order_id ON refund_transactions(order_id);
+CREATE INDEX idx_refund_transactions_user_id ON refund_transactions(user_id);
+CREATE INDEX idx_refund_transactions_status ON refund_transactions(status);
+
+-- 4. Payment Gateway Configs (Cấu hình cổng thanh toán)
+CREATE TABLE payment_gateway_configs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    gateway_code VARCHAR(50) UNIQUE NOT NULL,       -- VNPAY, MOMO, ZALOPAY, STRIPE
+    gateway_name VARCHAR(100) NOT NULL,
+    
+    -- Status
+    is_active BOOLEAN DEFAULT TRUE,
+    is_sandbox BOOLEAN DEFAULT TRUE,                -- Sandbox/Production mode
+    
+    -- Config (encrypted)
+    config_data JSONB,                              -- API keys, secrets, etc.
+    
+    -- Supported Methods
+    supported_methods TEXT[],                       -- ['CREDIT_CARD', 'BANK_TRANSFER', 'E_WALLET']
+    
+    -- Fees
+    fee_type VARCHAR(20) DEFAULT 'PERCENT',         -- PERCENT, FIXED, MIXED
+    fee_percent DECIMAL(5,2) DEFAULT 0,
+    fee_fixed DECIMAL(15,2) DEFAULT 0,
+    
+    -- Limits
+    min_amount DECIMAL(15,2) DEFAULT 10000,
+    max_amount DECIMAL(15,2) DEFAULT 500000000,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. Payment Logs (Log giao dịch chi tiết)
+CREATE TABLE payment_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    transaction_id UUID REFERENCES payment_transactions(id),
+    refund_id UUID REFERENCES refund_transactions(id),
+    
+    action VARCHAR(50) NOT NULL,                    -- CREATE, PROCESS, CALLBACK, QUERY, REFUND
+    status VARCHAR(50),
+    
+    request_data JSONB,
+    response_data JSONB,
+    
+    ip_address VARCHAR(50),
+    user_agent TEXT,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_payment_logs_transaction_id ON payment_logs(transaction_id);
+CREATE INDEX idx_payment_logs_created_at ON payment_logs(created_at DESC);
+
+-- ============================================
+-- PAYMENT STATUS FLOW
+-- ============================================
+--
+-- PENDING ──► PROCESSING ──► COMPLETED
+--    │             │
+--    │             └──► FAILED
+--    │
+--    └──► CANCELLED
+--
+-- COMPLETED ──► REFUNDED (partial or full)
+--
+-- ============================================
+
+-- ============================================
+-- SUPPORTED PAYMENT GATEWAYS
+-- ============================================
+--
+-- | Gateway  | Methods                    | Region   |
+-- |----------|----------------------------|----------|
+-- | VNPAY    | Card, Bank, QR            | Vietnam  |
+-- | MOMO     | E-Wallet, QR              | Vietnam  |
+-- | ZALOPAY  | E-Wallet, Card, Bank      | Vietnam  |
+-- | STRIPE   | Card, Apple Pay, Google   | Global   |
+-- | PAYPAL   | PayPal, Card              | Global   |
+-- | COD      | Cash on Delivery          | Local    |
+--
+-- ============================================
+
+-- ============================================
+-- SEED DATA - Gateway Configs
+-- ============================================
+
+INSERT INTO payment_gateway_configs (gateway_code, gateway_name, supported_methods, is_active, is_sandbox) VALUES
+    ('COD', 'Cash on Delivery', ARRAY['COD'], TRUE, FALSE),
+    ('VNPAY', 'VNPay', ARRAY['CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'QR'], TRUE, TRUE),
+    ('MOMO', 'MoMo E-Wallet', ARRAY['E_WALLET', 'QR'], TRUE, TRUE),
+    ('ZALOPAY', 'ZaloPay', ARRAY['E_WALLET', 'CREDIT_CARD', 'BANK_TRANSFER'], TRUE, TRUE),
+    ('BANK_TRANSFER', 'Bank Transfer', ARRAY['BANK_TRANSFER'], TRUE, FALSE);
+

@@ -1,0 +1,237 @@
+-- ============================================
+-- ORDER SERVICE API ENDPOINTS
+-- ============================================
+-- Base URL: /api/orders (via Gateway: /api/orders)
+-- Port: 5003
+-- ============================================
+
+-- ============================================
+-- CART APIs (Giỏ hàng)
+-- ============================================
+
+-- Get cart items
+GET /api/cart
+Headers: Authorization: Bearer {token}
+Response: { 
+    items: [{ id, product_id, product_name, product_image, product_price, variant_id, variant_name, variant_price, seller_id, seller_name, quantity }],
+    total_items,
+    subtotal
+}
+
+-- Add item to cart
+POST /api/cart
+Headers: Authorization: Bearer {token}
+Body: { product_id, product_name, product_image, product_price, variant_id?, variant_name?, variant_price?, seller_id, seller_name, quantity }
+Response: { id, product_id, quantity, message: "Item added to cart" }
+
+-- Update cart item quantity
+PUT /api/cart/{itemId}
+Headers: Authorization: Bearer {token}
+Body: { quantity }
+Response: { id, quantity, message: "Cart updated" }
+
+-- Remove item from cart
+DELETE /api/cart/{itemId}
+Headers: Authorization: Bearer {token}
+Response: { message: "Item removed from cart" }
+
+-- Clear cart
+DELETE /api/cart
+Headers: Authorization: Bearer {token}
+Response: { message: "Cart cleared" }
+
+-- ============================================
+-- ORDER APIs (Customer)
+-- ============================================
+
+-- Create order (checkout)
+POST /api/orders
+Headers: Authorization: Bearer {token}
+Body: {
+    items: [{
+        product_id, product_name, product_slug, product_image, product_sku,
+        variant_id?, variant_name?, variant_options?,
+        seller_id, seller_name,
+        unit_price, sale_price?, quantity
+    }],
+    shipping: {
+        name, phone, address, ward?, district?, city?, country?, postal_code?
+    },
+    shipping_method: "STANDARD" | "EXPRESS" | "SAME_DAY",
+    payment_method: "COD" | "BANK_TRANSFER" | "CREDIT_CARD" | "E_WALLET",
+    discount_code?,
+    customer_note?,
+    user_name?, user_email?, user_phone?
+}
+Response: { 
+    id, order_number, status, payment_status,
+    subtotal, shipping_fee, discount_amount, total_amount,
+    items: [...],
+    shipping: {...},
+    payment_url? (if online payment)
+}
+
+-- Get my orders
+GET /api/orders/me
+Headers: Authorization: Bearer {token}
+Query: ?page=1&pageSize=10&status=PENDING
+Response: { items: [...], total, page, pageSize }
+
+-- Get order detail
+GET /api/orders/{id}
+Headers: Authorization: Bearer {token}
+Response: {
+    id, order_number, status, payment_status,
+    user_id, user_name, user_email, user_phone,
+    subtotal, shipping_fee, discount_amount, tax_amount, total_amount,
+    discount_code,
+    items: [{
+        id, product_id, product_name, product_image, variant_name,
+        unit_price, sale_price, quantity, total_price, status
+    }],
+    shipping: { name, phone, address, ... },
+    shipping_method, shipping_carrier, tracking_number, estimated_delivery,
+    status_history: [{ status, note, created_at }],
+    customer_note,
+    created_at, confirmed_at, shipped_at, delivered_at
+}
+
+-- Get order by order number
+GET /api/orders/number/{orderNumber}
+Headers: Authorization: Bearer {token}
+Response: { ... same as above }
+
+-- Cancel order (only PENDING or CONFIRMED status)
+POST /api/orders/{id}/cancel
+Headers: Authorization: Bearer {token}
+Body: { reason }
+Response: { message: "Order cancelled", status: "CANCELLED" }
+
+-- Request refund
+POST /api/orders/{id}/refund
+Headers: Authorization: Bearer {token}
+Body: { 
+    order_item_id?, 
+    amount, 
+    reason,
+    refund_method: "ORIGINAL_PAYMENT" | "BANK_TRANSFER" | "WALLET",
+    bank_name?, bank_account?, bank_account_name?
+}
+Response: { id, status: "PENDING", message: "Refund request submitted" }
+
+-- ============================================
+-- ORDER APIs (Seller)
+-- ============================================
+
+-- Get seller orders
+GET /api/orders/seller
+Headers: Authorization: Bearer {token}
+Query: ?page=1&pageSize=10&status=PENDING
+Response: { items: [...], total, page, pageSize }
+
+-- Confirm order (PENDING → CONFIRMED)
+POST /api/orders/seller/{id}/confirm
+Headers: Authorization: Bearer {token}
+Response: { message: "Order confirmed", status: "CONFIRMED" }
+
+-- Process order (CONFIRMED → PROCESSING)
+POST /api/orders/seller/{id}/process
+Headers: Authorization: Bearer {token}
+Response: { message: "Order processing", status: "PROCESSING" }
+
+-- Ship order (PROCESSING → SHIPPED)
+POST /api/orders/seller/{id}/ship
+Headers: Authorization: Bearer {token}
+Body: { shipping_carrier, tracking_number, estimated_delivery? }
+Response: { message: "Order shipped", status: "SHIPPED", tracking_number }
+
+-- ============================================
+-- ORDER APIs (Admin)
+-- ============================================
+
+-- Get all orders
+GET /api/orders/admin
+Headers: Authorization: Bearer {token}
+Query: ?page=1&pageSize=20&status=PENDING&user_id=xxx&from=2024-01-01&to=2024-12-31
+Response: { items: [...], total, page, pageSize }
+
+-- Update order status
+PUT /api/orders/admin/{id}/status
+Headers: Authorization: Bearer {token}
+Body: { status, note? }
+Response: { message: "Status updated", status }
+
+-- Update payment status
+PUT /api/orders/admin/{id}/payment-status
+Headers: Authorization: Bearer {token}
+Body: { payment_status, transaction_id?, note? }
+Response: { message: "Payment status updated", payment_status }
+
+-- Mark as delivered (SHIPPED → DELIVERED)
+POST /api/orders/admin/{id}/deliver
+Headers: Authorization: Bearer {token}
+Response: { message: "Order delivered", status: "DELIVERED" }
+
+-- Process refund
+PUT /api/orders/admin/refunds/{refundId}
+Headers: Authorization: Bearer {token}
+Body: { status: "APPROVED" | "REJECTED", admin_note? }
+Response: { message: "Refund processed", status }
+
+-- Get refund requests
+GET /api/orders/admin/refunds
+Headers: Authorization: Bearer {token}
+Query: ?page=1&pageSize=20&status=PENDING
+Response: { items: [...], total, page, pageSize }
+
+-- Get order statistics
+GET /api/orders/admin/statistics
+Headers: Authorization: Bearer {token}
+Query: ?from=2024-01-01&to=2024-12-31
+Response: {
+    total_orders,
+    total_revenue,
+    orders_by_status: { PENDING: 10, DELIVERED: 100, ... },
+    orders_by_payment: { COD: 50, CREDIT_CARD: 30, ... },
+    daily_orders: [{ date, count, revenue }]
+}
+
+-- ============================================
+-- STATUS HISTORY APIs
+-- ============================================
+
+-- Get order status history
+GET /api/orders/{id}/history
+Headers: Authorization: Bearer {token}
+Response: { 
+    items: [{ id, status, previous_status, note, changed_by_name, created_at }]
+}
+
+-- ============================================
+-- PAYMENT CALLBACK APIs (Internal/Webhook)
+-- ============================================
+
+-- Payment callback (from Payment Gateway)
+POST /api/orders/payment/callback
+Body: { order_id, transaction_id, status, gateway, gateway_response }
+Response: { success: true }
+
+-- VNPay IPN callback
+GET /api/orders/payment/vnpay-ipn
+Query: vnp_TxnRef=xxx&vnp_Amount=xxx&vnp_ResponseCode=00&...
+Response: { RspCode: "00", Message: "Confirm Success" }
+
+-- ============================================
+-- INTERNAL APIs (for service-to-service)
+-- ============================================
+
+-- Sync user info when profile is updated
+POST /api/orders/internal/sync-user-info
+Body: { user_id, full_name, email, phone }
+Response: { message: "User info synced", user_id }
+
+-- Update inventory after order (called by Inventory service)
+POST /api/orders/internal/inventory-updated
+Body: { order_id, items: [{ product_id, quantity, status }] }
+Response: { success: true }
+

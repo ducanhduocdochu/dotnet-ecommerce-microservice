@@ -1,0 +1,421 @@
+###############################################################################
+#                         ORDER SERVICE API TESTING
+###############################################################################
+#
+# Base URLs:
+#   - Direct:  http://localhost:5003
+#   - Gateway: http://localhost:5010/api
+#
+# Authorization: Tất cả API đều yêu cầu JWT token
+#
+###############################################################################
+
+@baseUrl = http://localhost:5003
+@gatewayUrl = http://localhost:5010
+
+# Variables
+@accessToken = YOUR_JWT_TOKEN_HERE
+@itemId = YOUR_CART_ITEM_ID
+@orderId = YOUR_ORDER_ID
+
+
+###############################################################################
+# 1. CART APIs (Authenticated Users)
+###############################################################################
+
+### 1.1 Get My Cart
+GET {{baseUrl}}/api/cart
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "items": [
+#         {
+#             "id": "uuid",
+#             "productId": "uuid",
+#             "productName": "iPhone 15 Pro",
+#             "productImage": "...",
+#             "variantId": "uuid",
+#             "variantName": "256GB Black",
+#             "price": 29990000,
+#             "quantity": 2,
+#             "subtotal": 59980000
+#         }
+#     ],
+#     "totalItems": 2,
+#     "totalAmount": 59980000
+# }
+
+
+###############################################################################
+
+### 1.2 Add to Cart
+POST {{baseUrl}}/api/cart
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "productId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "productName": "iPhone 15 Pro Max",
+    "productPrice": 29990000,
+    "sellerId": "8a85f64-5717-4562-b3fc-2c963f66afa8",
+    "quantity": 2,
+    "productImage": "https://example.com/iphone.jpg",
+    "variantId": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+    "variantName": "256GB - Black Titanium",
+    "variantPrice": 29990000,
+    "sellerName": "Apple Store Official"
+}
+
+### Expected Response (200 OK):
+# {
+#     "item": {
+#         "id": "new-cart-item-uuid",
+#         "productId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+#         "productName": "iPhone 15 Pro Max",
+#         "productImage": "https://example.com/iphone.jpg",
+#         "productPrice": 29990000,
+#         "variantId": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+#         "variantName": "256GB - Black Titanium",
+#         "variantPrice": 29990000,
+#         "sellerId": "8a85f64-5717-4562-b3fc-2c963f66afa8",
+#         "sellerName": "Apple Store Official",
+#         "quantity": 2,
+#         "totalPrice": 59980000
+#     },
+#     "message": "Item added to cart"
+# }
+
+
+###############################################################################
+
+### 1.3 Update Cart Item Quantity
+PUT {{baseUrl}}/api/cart/{{itemId}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "quantity": 3
+}
+
+### Expected Response (200 OK):
+# {
+#     "item": { ... },
+#     "message": "Cart updated"
+# }
+
+
+###############################################################################
+
+### 1.4 Remove Cart Item
+DELETE {{baseUrl}}/api/cart/{{itemId}}
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Item removed from cart"
+# }
+
+
+###############################################################################
+
+### 1.5 Clear Cart
+DELETE {{baseUrl}}/api/cart
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Cart cleared"
+# }
+
+
+###############################################################################
+# 2. CHECKOUT & ORDER APIs
+###############################################################################
+
+### 2.1 Checkout (Create Order from Cart)
+# Note: Cart items are automatically retrieved from the user's cart in database
+POST {{baseUrl}}/api/orders/checkout
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "items": [
+        {
+            "productId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "productName": "iPhone 15 Pro Max",
+            "sellerId": "8a85f64-5717-4562-b3fc-2c963f66afa8",
+            "unitPrice": 34990000,
+            "quantity": 1,
+            "productSlug": "iphone-15-pro-max",
+            "productImage": "https://example.com/iphone.jpg",
+            "productSku": "IP15PROMAX-256",
+            "variantId": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+            "variantName": "256GB - Natural Titanium",
+            "variantOptions": "Storage: 256GB, Color: Natural Titanium",
+            "sellerName": "Apple Store Official",
+            "salePrice": 32990000
+        }
+    ],
+    "shipping": {
+        "name": "John Doe",
+        "phone": "+84901234567",
+        "address": "123 Nguyen Hue Street",
+        "ward": "Ben Nghe Ward",
+        "district": "District 1",
+        "city": "Ho Chi Minh City",
+        "country": "Vietnam",
+        "postalCode": "700000"
+    },
+    "shippingMethod": "STANDARD",
+    "paymentMethod": "BANK_TRANSFER",
+    "paymentGateway": "VNPAY",
+    "discountCode": "NEWYEAR2024",
+    "customerNote": "Please deliver in the morning",
+    "userName": "John Doe",
+    "userEmail": "john@example.com",
+    "userPhone": "+84901234567",
+    "returnUrl": "http://localhost:3000/orders/success",
+    "cancelUrl": "http://localhost:3000/orders/cancel"
+}
+
+### Expected Response (200 OK):
+# {
+#     "success": true,
+#     "order": {
+#         "id": "uuid",
+#         "orderNumber": "ORD-20240101-001",
+#         "status": "PENDING",
+#         "paymentStatus": "PENDING",
+#         "subtotal": 32990000,
+#         "shippingFee": 30000,
+#         "discountAmount": 500000,
+#         "totalAmount": 32520000,
+#         "items": [...],
+#         "shipping": {...},
+#         "paymentUrl": "https://payment-gateway.com/pay/..."
+#     },
+#     "paymentUrl": "https://payment-gateway.com/pay/...",
+#     "message": "Order created successfully"
+# }
+
+### Error Response (400 Bad Request):
+# {
+#     "message": "Out of stock / Discount invalid / Validation error"
+# }
+
+
+###############################################################################
+
+### 2.2 Payment Callback (Internal - from Payment Gateway)
+POST {{baseUrl}}/api/orders/payment-callback
+Content-Type: application/json
+
+{
+    "orderId": "{{orderId}}",
+    "paymentTransactionId": "PAY-123456",
+    "status": "SUCCESS",
+    "amount": 59980000
+}
+
+
+###############################################################################
+
+### 2.3 Get My Orders
+GET {{baseUrl}}/api/orders/me?status=PENDING&page=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+
+### Query Parameters:
+# - status: PENDING, CONFIRMED, SHIPPING, DELIVERED, CANCELLED
+# - page: default 1
+# - pageSize: default 10
+
+### Expected Response (200 OK):
+# {
+#     "items": [
+#         {
+#             "id": "uuid",
+#             "orderNumber": "ORD-20240101-001",
+#             "status": "PENDING",
+#             "totalAmount": 59980000,
+#             "createdAt": "...",
+#             "items": [...]
+#         }
+#     ],
+#     "page": 1,
+#     "pageSize": 10,
+#     "totalCount": 25,
+#     "totalPages": 3
+# }
+
+
+###############################################################################
+
+### 2.4 Get Order by ID
+GET {{baseUrl}}/api/orders/{{orderId}}
+Authorization: Bearer {{accessToken}}
+
+### Expected Response (200 OK):
+# {
+#     "id": "uuid",
+#     "orderNumber": "ORD-20240101-001",
+#     "userId": "uuid",
+#     "userName": "John Doe",
+#     "status": "PENDING",
+#     "totalAmount": 59980000,
+#     "shippingFee": 30000,
+#     "discountAmount": 1000000,
+#     "finalAmount": 59010000,
+#     "shippingAddress": {...},
+#     "items": [...],
+#     "statusHistory": [...],
+#     "createdAt": "...",
+#     "updatedAt": "..."
+# }
+
+
+###############################################################################
+
+### 2.5 Get Order by Order Number
+GET {{baseUrl}}/api/orders/number/ORD-20240101-001
+Authorization: Bearer {{accessToken}}
+
+
+###############################################################################
+
+### 2.6 Cancel Order
+POST {{baseUrl}}/api/orders/{{orderId}}/cancel
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "reason": "Changed my mind / Wrong product / Found better price"
+}
+
+### Expected Response (200 OK):
+# {
+#     "message": "Order cancelled successfully"
+# }
+
+
+###############################################################################
+# 3. SELLER APIs (Requires Seller Role)
+###############################################################################
+
+### 3.1 Get Orders by Seller
+GET {{baseUrl}}/api/orders/seller/me?status=PENDING&page=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+
+
+###############################################################################
+
+### 3.2 Update Order Status (Seller)
+PATCH {{baseUrl}}/api/orders/{{orderId}}/status
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "status": "CONFIRMED",
+    "notes": "Order confirmed, preparing shipment"
+}
+
+### Status transitions:
+# PENDING → CONFIRMED → SHIPPING → DELIVERED
+# Any → CANCELLED
+
+
+###############################################################################
+# 4. ADMIN APIs (Requires Admin Role)
+###############################################################################
+
+### 4.1 Get All Orders (Admin)
+GET {{baseUrl}}/api/orders/admin/all?page=1&pageSize=20
+Authorization: Bearer {{accessToken}}
+
+
+###############################################################################
+# 5. GATEWAY ROUTES
+###############################################################################
+
+### 5.1 Get Cart via Gateway
+GET {{gatewayUrl}}/api/cart
+Authorization: Bearer {{accessToken}}
+
+### 5.2 Add to Cart via Gateway
+POST {{gatewayUrl}}/api/cart
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "productId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "productName": "iPhone 15 Pro Max",
+    "productPrice": 29990000,
+    "sellerId": "8a85f64-5717-4562-b3fc-2c963f66afa8",
+    "quantity": 2,
+    "productImage": "https://example.com/iphone.jpg",
+    "variantId": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+    "variantName": "256GB - Black Titanium",
+    "variantPrice": 29990000,
+    "sellerName": "Apple Store Official"
+}
+
+### 5.3 Checkout via Gateway
+POST {{gatewayUrl}}/api/orders/checkout
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "items": [
+        {
+            "productId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+            "productName": "iPhone 15 Pro Max",
+            "sellerId": "8a85f64-5717-4562-b3fc-2c963f66afa8",
+            "unitPrice": 34990000,
+            "quantity": 1,
+            "variantId": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+            "variantName": "256GB - Natural Titanium",
+            "sellerName": "Apple Store Official",
+            "salePrice": 32990000
+        }
+    ],
+    "shipping": {
+        "name": "John Doe",
+        "phone": "+84901234567",
+        "address": "123 Nguyen Hue Street",
+        "ward": "Ben Nghe Ward",
+        "district": "District 1",
+        "city": "Ho Chi Minh City",
+        "country": "Vietnam"
+    },
+    "shippingMethod": "STANDARD",
+    "paymentMethod": "BANK_TRANSFER",
+    "paymentGateway": "VNPAY",
+    "discountCode": "NEWYEAR2024",
+    "customerNote": "Please call before delivery",
+    "returnUrl": "http://localhost:3000/orders/success",
+    "cancelUrl": "http://localhost:3000/orders/cancel"
+}
+
+
+###############################################################################
+# API SUMMARY
+###############################################################################
+#
+# | Method | Endpoint                            | Auth   | Description              |
+# |--------|-------------------------------------|--------|--------------------------|
+# | GET    | /api/cart                           | User   | Get my cart              |
+# | POST   | /api/cart                           | User   | Add to cart              |
+# | PUT    | /api/cart/{itemId}                  | User   | Update cart item         |
+# | DELETE | /api/cart/{itemId}                  | User   | Remove from cart         |
+# | DELETE | /api/cart                           | User   | Clear cart               |
+# | POST   | /api/orders/checkout                | User   | Checkout                 |
+# | POST   | /api/orders/payment-callback        | Public | Payment callback         |
+# | GET    | /api/orders/me                      | User   | Get my orders            |
+# | GET    | /api/orders/{id}                    | User   | Get order detail         |
+# | GET    | /api/orders/number/{orderNumber}    | User   | Get by order number      |
+# | POST   | /api/orders/{id}/cancel             | User   | Cancel order             |
+# | GET    | /api/orders/seller/me               | Seller | Get seller orders        |
+# | PATCH  | /api/orders/{id}/status             | Seller | Update order status      |
+# | GET    | /api/orders/admin/all               | Admin  | Get all orders           |
+#
+###############################################################################

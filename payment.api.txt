@@ -1,0 +1,291 @@
+-- ============================================
+-- PAYMENT SERVICE API ENDPOINTS
+-- ============================================
+-- Base URL: /api/payments (via Gateway: /api/payments)
+-- Port: 5004
+-- ============================================
+
+-- ============================================
+-- PAYMENT TRANSACTION APIs
+-- ============================================
+
+-- Create payment (initiate payment for an order)
+POST /api/payments
+Headers: Authorization: Bearer {token}
+Body: {
+    order_id,
+    order_number,
+    amount,
+    currency: "VND",
+    payment_method: "CREDIT_CARD" | "BANK_TRANSFER" | "E_WALLET" | "COD",
+    payment_gateway: "VNPAY" | "MOMO" | "ZALOPAY",
+    return_url,
+    description?,
+    user_email?,
+    user_phone?,
+    saved_method_id?    -- Use saved payment method
+}
+Response: {
+    id,
+    transaction_code,
+    status: "PENDING",
+    payment_url,        -- Redirect user to this URL for payment
+    expired_at
+}
+
+-- Get payment status
+GET /api/payments/{id}
+Headers: Authorization: Bearer {token}
+Response: {
+    id,
+    transaction_code,
+    order_id,
+    order_number,
+    amount,
+    currency,
+    payment_method,
+    payment_gateway,
+    status,
+    gateway_transaction_id,
+    paid_at,
+    created_at
+}
+
+-- Get payment by transaction code
+GET /api/payments/code/{transactionCode}
+Headers: Authorization: Bearer {token}
+Response: { ... same as above }
+
+-- Get my payment history
+GET /api/payments/me
+Headers: Authorization: Bearer {token}
+Query: ?page=1&pageSize=10&status=COMPLETED
+Response: { items: [...], total, page, pageSize }
+
+-- Cancel payment (only PENDING status)
+POST /api/payments/{id}/cancel
+Headers: Authorization: Bearer {token}
+Response: { message: "Payment cancelled", status: "CANCELLED" }
+
+-- ============================================
+-- PAYMENT CALLBACK APIs (Webhook from Gateway)
+-- ============================================
+
+-- VNPay IPN callback
+GET /api/payments/callback/vnpay
+Query: vnp_TxnRef=xxx&vnp_Amount=xxx&vnp_ResponseCode=00&vnp_SecureHash=xxx
+Response: { RspCode: "00", Message: "Confirm Success" }
+
+-- VNPay return URL
+GET /api/payments/return/vnpay
+Query: vnp_TxnRef=xxx&vnp_ResponseCode=00&...
+Redirect: {frontend_url}/payment/result?status=success&order_id=xxx
+
+-- MoMo IPN callback
+POST /api/payments/callback/momo
+Body: { partnerCode, orderId, resultCode, message, ... }
+Response: { status: 0, message: "success" }
+
+-- ZaloPay callback
+POST /api/payments/callback/zalopay
+Body: { data, mac, type }
+Response: { return_code: 1, return_message: "success" }
+
+-- ============================================
+-- SAVED PAYMENT METHODS APIs
+-- ============================================
+
+-- Get my saved payment methods
+GET /api/payments/methods
+Headers: Authorization: Bearer {token}
+Response: {
+    items: [{
+        id, type, provider, 
+        card_last4?, card_brand?, card_exp_month?, card_exp_year?,
+        bank_name?, account_number_masked?,
+        wallet_phone?,
+        is_default, nickname
+    }]
+}
+
+-- Add payment method
+POST /api/payments/methods
+Headers: Authorization: Bearer {token}
+Body: {
+    type: "CREDIT_CARD" | "BANK_ACCOUNT" | "E_WALLET",
+    provider: "VISA" | "MASTERCARD" | "MOMO" | ...,
+    
+    -- For Card (tokenized from frontend)
+    card_token?,
+    card_last4?,
+    card_brand?,
+    card_exp_month?,
+    card_exp_year?,
+    card_holder_name?,
+    
+    -- For Bank
+    bank_code?,
+    bank_name?,
+    account_number?,
+    account_holder_name?,
+    
+    -- For E-Wallet
+    wallet_phone?,
+    
+    nickname?,
+    is_default?
+}
+Response: { id, type, provider, is_default, message: "Payment method added" }
+
+-- Update payment method
+PUT /api/payments/methods/{id}
+Headers: Authorization: Bearer {token}
+Body: { nickname?, is_default? }
+Response: { id, nickname, is_default, message: "Payment method updated" }
+
+-- Delete payment method
+DELETE /api/payments/methods/{id}
+Headers: Authorization: Bearer {token}
+Response: { message: "Payment method removed" }
+
+-- Set default payment method
+PUT /api/payments/methods/{id}/default
+Headers: Authorization: Bearer {token}
+Response: { message: "Default payment method updated" }
+
+-- ============================================
+-- REFUND APIs
+-- ============================================
+
+-- Request refund
+POST /api/payments/{paymentId}/refund
+Headers: Authorization: Bearer {token}
+Body: {
+    amount,
+    reason,
+    refund_method: "ORIGINAL_PAYMENT" | "BANK_TRANSFER" | "WALLET",
+    order_refund_id?,
+    bank_code?,
+    bank_name?,
+    bank_account?,
+    bank_account_name?
+}
+Response: { id, refund_code, status: "PENDING", message: "Refund request submitted" }
+
+-- Get refund status
+GET /api/payments/refunds/{refundId}
+Headers: Authorization: Bearer {token}
+Response: {
+    id,
+    refund_code,
+    payment_transaction_id,
+    order_id,
+    amount,
+    status,
+    refund_method,
+    reason,
+    completed_at
+}
+
+-- Get my refund history
+GET /api/payments/refunds/me
+Headers: Authorization: Bearer {token}
+Query: ?page=1&pageSize=10&status=PENDING
+Response: { items: [...], total, page, pageSize }
+
+-- ============================================
+-- ADMIN APIs
+-- ============================================
+
+-- Get all transactions
+GET /api/payments/admin/transactions
+Headers: Authorization: Bearer {token}
+Query: ?page=1&pageSize=20&status=COMPLETED&gateway=VNPAY&from=2024-01-01&to=2024-12-31
+Response: { items: [...], total, page, pageSize }
+
+-- Get transaction detail
+GET /api/payments/admin/transactions/{id}
+Headers: Authorization: Bearer {token}
+Response: { ... full transaction details with logs }
+
+-- Query payment status from gateway
+POST /api/payments/admin/transactions/{id}/query
+Headers: Authorization: Bearer {token}
+Response: { gateway_status, gateway_response }
+
+-- Get all refunds
+GET /api/payments/admin/refunds
+Headers: Authorization: Bearer {token}
+Query: ?page=1&pageSize=20&status=PENDING
+Response: { items: [...], total, page, pageSize }
+
+-- Process refund (approve/reject)
+PUT /api/payments/admin/refunds/{refundId}
+Headers: Authorization: Bearer {token}
+Body: { action: "APPROVE" | "REJECT", admin_note? }
+Response: { id, status, message }
+
+-- Execute refund (actually refund via gateway)
+POST /api/payments/admin/refunds/{refundId}/execute
+Headers: Authorization: Bearer {token}
+Response: { id, status, gateway_refund_id, message }
+
+-- Get payment statistics
+GET /api/payments/admin/statistics
+Headers: Authorization: Bearer {token}
+Query: ?from=2024-01-01&to=2024-12-31
+Response: {
+    total_transactions,
+    total_amount,
+    success_rate,
+    transactions_by_gateway: { VNPAY: 100, MOMO: 50, ... },
+    transactions_by_method: { CREDIT_CARD: 80, E_WALLET: 70, ... },
+    daily_stats: [{ date, count, amount, success_count }]
+}
+
+-- ============================================
+-- GATEWAY CONFIG APIs (Admin)
+-- ============================================
+
+-- Get gateway configs
+GET /api/payments/admin/gateways
+Headers: Authorization: Bearer {token}
+Response: { items: [{ gateway_code, gateway_name, is_active, supported_methods, ... }] }
+
+-- Update gateway config
+PUT /api/payments/admin/gateways/{gatewayCode}
+Headers: Authorization: Bearer {token}
+Body: { is_active?, is_sandbox?, config_data?, fee_percent?, fee_fixed? }
+Response: { gateway_code, message: "Gateway config updated" }
+
+-- ============================================
+-- INTERNAL APIs (for service-to-service)
+-- ============================================
+
+-- Verify payment status (called by Order service)
+GET /api/payments/internal/verify/{orderId}
+Response: { order_id, is_paid, payment_id?, paid_at?, amount? }
+
+-- Notify payment completed (webhook to Order service)
+-- This is done via RabbitMQ event: PaymentCompletedEvent
+
+-- ============================================
+-- PAYMENT GATEWAY INTEGRATION NOTES
+-- ============================================
+--
+-- VNPay Flow:
+-- 1. Create payment → Get payment URL
+-- 2. Redirect user to VNPay
+-- 3. User completes payment
+-- 4. VNPay calls IPN callback
+-- 5. VNPay redirects user to return URL
+-- 6. Update order status
+--
+-- MoMo Flow:
+-- 1. Create payment → Get payment URL / QR code
+-- 2. User pays via MoMo app
+-- 3. MoMo calls IPN callback
+-- 4. Update order status
+--
+-- ============================================
+

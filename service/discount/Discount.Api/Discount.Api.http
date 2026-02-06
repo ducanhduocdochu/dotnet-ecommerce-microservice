@@ -1,0 +1,393 @@
+###############################################################################
+#                       DISCOUNT SERVICE API TESTING
+###############################################################################
+#
+# Base URLs:
+#   - Direct:  http://localhost:5006
+#   - Gateway: http://localhost:5010/api/discounts
+#
+# gRPC: localhost:5016
+#
+###############################################################################
+
+@baseUrl = http://localhost:5006
+@gatewayUrl = http://localhost:5010
+
+# Variables
+@accessToken = YOUR_JWT_TOKEN_HERE
+@adminToken = YOUR_ADMIN_TOKEN_HERE
+@discountId = YOUR_DISCOUNT_ID
+@promotionId = YOUR_PROMOTION_ID
+@flashSaleId = YOUR_FLASH_SALE_ID
+
+
+###############################################################################
+# 1. PUBLIC DISCOUNT APIs
+###############################################################################
+
+### 1.1 Get Public Discounts
+# Lấy danh sách discounts công khai (đang active)
+GET {{baseUrl}}/api/discounts?page=1&pageSize=20
+
+### Expected Response (200 OK):
+# {
+#     "items": [
+#         {
+#             "id": "uuid",
+#             "code": "NEWYEAR2024",
+#             "name": "New Year Sale",
+#             "description": "Get 20% off",
+#             "discountType": "PERCENTAGE",
+#             "discountValue": 20,
+#             "maxDiscountAmount": 500000,
+#             "minOrderAmount": 1000000,
+#             "startDate": "2024-01-01",
+#             "endDate": "2024-01-31",
+#             "usageLimit": 1000,
+#             "usageCount": 150
+#         }
+#     ],
+#     "page": 1,
+#     "pageSize": 20,
+#     "totalCount": 5
+# }
+
+
+###############################################################################
+
+### 1.2 Get Discount by Code (Public)
+GET {{baseUrl}}/api/discounts/code/NEWYEAR2024
+
+### Expected Response (200 OK):
+# {
+#     "id": "uuid",
+#     "code": "NEWYEAR2024",
+#     "discountType": "PERCENTAGE",
+#     "discountValue": 20,
+#     ...
+# }
+
+
+###############################################################################
+
+### 1.3 Validate Discount
+# Kiểm tra mã giảm giá có hợp lệ không
+POST {{baseUrl}}/api/discounts/validate
+Content-Type: application/json
+
+{
+    "code": "NEWYEAR2024",
+    "userId": "user-uuid",
+    "orderAmount": 2000000,
+    "productIds": ["product-uuid-1", "product-uuid-2"]
+}
+
+### Expected Response (200 OK):
+# {
+#     "isValid": true,
+#     "discountAmount": 400000,
+#     "message": "Discount applied successfully"
+# }
+
+### Error Response (400 Bad Request):
+# {
+#     "isValid": false,
+#     "discountAmount": 0,
+#     "message": "Discount code expired / Already used / Minimum order not met"
+# }
+
+
+###############################################################################
+# 2. PROMOTIONS APIs (Public Read)
+###############################################################################
+
+### 2.1 Get Active Promotions
+GET {{baseUrl}}/api/discounts/promotions?page=1&pageSize=10
+
+### Expected Response (200 OK):
+# [
+#     {
+#         "id": "uuid",
+#         "name": "Summer Sale",
+#         "description": "Up to 50% off",
+#         "bannerUrl": "...",
+#         "startDate": "...",
+#         "endDate": "...",
+#         "discounts": [...]
+#     }
+# ]
+
+
+###############################################################################
+
+### 2.2 Get Promotion by ID
+GET {{baseUrl}}/api/discounts/promotions/{{promotionId}}
+
+
+###############################################################################
+# 3. FLASH SALES APIs (Public Read)
+###############################################################################
+
+### 3.1 Get Active Flash Sales
+GET {{baseUrl}}/api/discounts/flash-sales?page=1&pageSize=10
+
+### Expected Response (200 OK):
+# [
+#     {
+#         "id": "uuid",
+#         "name": "Flash Sale 12h",
+#         "startDate": "2024-01-01T12:00:00Z",
+#         "endDate": "2024-01-01T14:00:00Z",
+#         "items": [
+#             {
+#                 "productId": "uuid",
+#                 "originalPrice": 10000000,
+#                 "flashPrice": 7000000,
+#                 "quantity": 100,
+#                 "soldCount": 25
+#             }
+#         ]
+#     }
+# ]
+
+
+###############################################################################
+
+### 3.2 Get Flash Sale by ID
+GET {{baseUrl}}/api/discounts/flash-sales/{{flashSaleId}}
+
+
+###############################################################################
+# 4. ADMIN - DISCOUNT MANAGEMENT
+###############################################################################
+
+### 4.1 Create Discount (Admin Only)
+POST {{baseUrl}}/api/discounts
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "code": "SUMMER2024",
+    "name": "Summer Sale 2024",
+    "description": "Get 30% off on all products",
+    "discountType": "PERCENTAGE",
+    "discountValue": 30,
+    "maxDiscountAmount": 1000000,
+    "minOrderAmount": 500000,
+    "startDate": "2024-06-01T00:00:00Z",
+    "endDate": "2024-06-30T23:59:59Z",
+    "usageLimit": 5000,
+    "usageLimitPerUser": 1,
+    "isActive": true,
+    "applyToAllProducts": true,
+    "productIds": [],
+    "categoryIds": [],
+    "userIds": []
+}
+
+### Discount Types:
+# - PERCENTAGE: Giảm theo %
+# - FIXED_AMOUNT: Giảm cố định (VND)
+# - FREE_SHIPPING: Miễn phí ship
+
+### Expected Response (201 Created):
+# {
+#     "id": "new-discount-uuid",
+#     "code": "SUMMER2024",
+#     ...
+# }
+
+
+###############################################################################
+
+### 4.2 Get All Discounts (Admin)
+GET {{baseUrl}}/api/discounts/admin/all?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+
+###############################################################################
+
+### 4.3 Update Discount (Admin)
+PUT {{baseUrl}}/api/discounts/{{discountId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "code": "SUMMER2024-UPDATED",
+    "name": "Summer Sale 2024 - Extended",
+    "discountValue": 35,
+    "endDate": "2024-07-15T23:59:59Z",
+    "isActive": true
+}
+
+
+###############################################################################
+
+### 4.4 Delete Discount (Admin)
+DELETE {{baseUrl}}/api/discounts/{{discountId}}
+Authorization: Bearer {{adminToken}}
+
+
+###############################################################################
+
+### 4.5 Get Discount Usage Stats (Admin)
+GET {{baseUrl}}/api/discounts/{{discountId}}/usage
+Authorization: Bearer {{adminToken}}
+
+### Expected Response (200 OK):
+# {
+#     "discountId": "uuid",
+#     "totalUsage": 250,
+#     "usageByUser": [
+#         {
+#             "userId": "uuid",
+#             "userName": "John Doe",
+#             "usageCount": 1,
+#             "totalDiscount": 500000
+#         }
+#     ]
+# }
+
+
+###############################################################################
+# 5. ADMIN - PROMOTION MANAGEMENT
+###############################################################################
+
+### 5.1 Create Promotion (Admin)
+POST {{baseUrl}}/api/discounts/promotions
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "name": "Black Friday 2024",
+    "description": "Biggest sale of the year",
+    "bannerUrl": "https://example.com/banner.jpg",
+    "startDate": "2024-11-29T00:00:00Z",
+    "endDate": "2024-11-30T23:59:59Z",
+    "isActive": true,
+    "discountIds": ["discount-uuid-1", "discount-uuid-2"]
+}
+
+
+###############################################################################
+
+### 5.2 Update Promotion (Admin)
+PUT {{baseUrl}}/api/discounts/promotions/{{promotionId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "name": "Black Friday Extended",
+    "endDate": "2024-12-02T23:59:59Z",
+    "isActive": true
+}
+
+
+###############################################################################
+
+### 5.3 Delete Promotion (Admin)
+DELETE {{baseUrl}}/api/discounts/promotions/{{promotionId}}
+Authorization: Bearer {{adminToken}}
+
+
+###############################################################################
+# 6. ADMIN - FLASH SALE MANAGEMENT
+###############################################################################
+
+### 6.1 Create Flash Sale (Admin)
+POST {{baseUrl}}/api/discounts/flash-sales
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "name": "Flash Sale 12h - iPhones",
+    "startDate": "2024-01-15T12:00:00Z",
+    "endDate": "2024-01-15T14:00:00Z",
+    "isActive": true,
+    "items": [
+        {
+            "productId": "iphone-uuid",
+            "originalPrice": 29990000,
+            "flashPrice": 24990000,
+            "quantity": 50
+        },
+        {
+            "productId": "ipad-uuid",
+            "originalPrice": 15990000,
+            "flashPrice": 12990000,
+            "quantity": 30
+        }
+    ]
+}
+
+
+###############################################################################
+
+### 6.2 Update Flash Sale (Admin)
+PUT {{baseUrl}}/api/discounts/flash-sales/{{flashSaleId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+    "name": "Flash Sale Extended",
+    "endDate": "2024-01-15T16:00:00Z",
+    "isActive": true
+}
+
+
+###############################################################################
+
+### 6.3 Delete Flash Sale (Admin)
+DELETE {{baseUrl}}/api/discounts/flash-sales/{{flashSaleId}}
+Authorization: Bearer {{adminToken}}
+
+
+###############################################################################
+# 7. GATEWAY ROUTES
+###############################################################################
+
+### 7.1 Get Discounts via Gateway
+GET {{gatewayUrl}}/api/discounts?page=1&pageSize=10
+
+### 7.2 Validate Discount via Gateway
+POST {{gatewayUrl}}/api/discounts/validate
+Content-Type: application/json
+
+{
+    "code": "NEWYEAR2024",
+    "orderAmount": 2000000
+}
+
+
+###############################################################################
+# API SUMMARY
+###############################################################################
+#
+# | Method | Endpoint                              | Auth  | Description                  |
+# |--------|---------------------------------------|-------|------------------------------|
+# | **Public Discounts** |
+# | GET    | /api/discounts                        | ❌    | Get public discounts         |
+# | GET    | /api/discounts/code/{code}            | ❌    | Get discount by code         |
+# | POST   | /api/discounts/validate               | ❌    | Validate discount            |
+# | **Promotions** |
+# | GET    | /api/discounts/promotions             | ❌    | Get active promotions        |
+# | GET    | /api/discounts/promotions/{id}        | ❌    | Get promotion detail         |
+# | **Flash Sales** |
+# | GET    | /api/discounts/flash-sales            | ❌    | Get active flash sales       |
+# | GET    | /api/discounts/flash-sales/{id}       | ❌    | Get flash sale detail        |
+# | **Admin - Discounts** |
+# | POST   | /api/discounts                        | Admin | Create discount              |
+# | GET    | /api/discounts/admin/all              | Admin | Get all discounts            |
+# | PUT    | /api/discounts/{id}                   | Admin | Update discount              |
+# | DELETE | /api/discounts/{id}                   | Admin | Delete discount              |
+# | GET    | /api/discounts/{id}/usage             | Admin | Get usage stats              |
+# | **Admin - Promotions** |
+# | POST   | /api/discounts/promotions             | Admin | Create promotion             |
+# | PUT    | /api/discounts/promotions/{id}        | Admin | Update promotion             |
+# | DELETE | /api/discounts/promotions/{id}        | Admin | Delete promotion             |
+# | **Admin - Flash Sales** |
+# | POST   | /api/discounts/flash-sales            | Admin | Create flash sale            |
+# | PUT    | /api/discounts/flash-sales/{id}       | Admin | Update flash sale            |
+# | DELETE | /api/discounts/flash-sales/{id}       | Admin | Delete flash sale            |
+#
+###############################################################################
